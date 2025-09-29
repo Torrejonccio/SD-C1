@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Pruebas Interactivo - Sistemas Distribuidos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chosen Palette: Calm Neutrals -->
+    <!-- Application Structure Plan: La aplicación está diseñada como un panel de control interactivo. La estructura es de arriba hacia abajo: 1) Un encabezado claro. 2) Una sección de configuración donde el usuario define los parámetros de la prueba (unidades, dificultad, tipo y cantidad de preguntas). Esta estructura centrada en el usuario permite una personalización completa antes de la generación. 3) Un botón de acción principal para generar la prueba. 4) Un área de visualización dinámica que aparece con la prueba generada, ahora con inputs para responder. 5) Un botón de "Revisar" para obtener feedback inmediato y un puntaje. 6) Un área de soluciones oculta, que se revela bajo demanda para facilitar el autoaprendizaje. Se eligió este flujo para imitar un proceso de estudio: primero configurar, luego intentar resolver, revisar, y finalmente, profundizar en las justificaciones. -->
+    <!-- Visualization & Content Choices: La información del reporte (preguntas y respuestas) se almacena en un objeto JS. El objetivo es permitir al usuario crear y resolver pruebas personalizadas. La presentación se realiza mediante un formulario HTML para la configuración, y bloques de texto estructurado con radio buttons para la prueba. La interacción principal es la selección de respuestas y el clic en "Revisar", que desencadena una función para evaluar las respuestas y dar feedback visual (coloreando las preguntas) y un puntaje total. El solucionario detallado complementa el feedback. Esta aproximación fomenta un aprendizaje activo. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .control-group {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        .unit-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .unit-btn.selected {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .solution {
+            border-left: 4px solid #10b981;
+            background-color: #f0fdf4;
+        }
+        .solution-v {
+             border-left-color: #10b981;
+             background-color: #f0fdf4;
+        }
+        .solution-f {
+            border-left-color: #ef4444;
+            background-color: #fef2f2;
+        }
+        #solutions-container ol > li {
+            margin-bottom: 1.5rem;
+        }
+        .quiz-item {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease-in-out;
+        }
+        .correct-answer {
+            background-color: #f0fdf4;
+            border-color: #10b981;
+        }
+        .incorrect-answer {
+            background-color: #fef2f2;
+            border-color: #ef4444;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-slate-900 mb-2">Generador de Pruebas Interactivo</h1>
+            <p class="text-lg text-slate-600">Sistemas Distribuidos INF-343</p>
+        </header>
+
+        <main id="app-container" class="bg-white p-6 md:p-8 rounded-2xl shadow-lg">
+            
+            <div id="config-section">
+                <p class="text-slate-700 mb-6 text-center">Selecciona los parámetros para generar tu prueba personalizada. Elige las unidades, el nivel de dificultad y la cantidad de preguntas que deseas incluir.</p>
+
+                <div class="control-group">
+                    <h3 class="font-bold text-lg mb-3 text-slate-700">1. Unidades de Contenido</h3>
+                    <div id="unit-selector" class="flex flex-wrap gap-2">
+                        <button data-unit="unidad1" class="unit-btn flex-1 px-4 py-2 rounded-lg border bg-white hover:bg-slate-100">Unidad 1</button>
+                        <button data-unit="unidad2" class="unit-btn flex-1 px-4 py-2 rounded-lg border bg-white hover:bg-slate-100">Unidad 2</button>
+                        <button data-unit="unidad3" class="unit-btn flex-1 px-4 py-2 rounded-lg border bg-white hover:bg-slate-100">Unidad 3</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3 class="font-bold text-lg mb-3 text-slate-700">2. Nivel de Dificultad</h3>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="difficulty" value="medio" class="form-radio text-blue-500" checked>
+                            <span>Medio</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="difficulty" value="dificil" class="form-radio text-blue-500">
+                            <span>Difícil</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3 class="font-bold text-lg mb-3 text-slate-700">3. Tipos y Cantidad de Preguntas</h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div class="flex items-center gap-3">
+                             <label for="vf-count" class="font-medium text-slate-600 w-32">Verdadero/Falso:</label>
+                             <input type="number" id="vf-count" min="0" value="10" class="form-input w-24 p-2 border rounded-md text-center">
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label for="sm-count" class="font-medium text-slate-600 w-32">Selección Múltiple:</label>
+                            <input type="number" id="sm-count" min="0" value="5" class="form-input w-24 p-2 border rounded-md text-center">
+                        </div>
+                    </div>
+                    <p id="question-count-feedback" class="text-sm text-slate-500 mt-3 text-center"></p>
+                </div>
+
+                <div class="mt-8 text-center">
+                    <button id="generate-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 disabled:bg-slate-400 disabled:cursor-not-allowed disabled:scale-100">
+                        Generar Prueba
+                    </button>
+                </div>
+            </div>
+
+            <div id="quiz-container" class="hidden mt-8">
+                <hr class="mb-8">
+                <div id="quiz-results" class="text-center mb-6 hidden"></div>
+                <div id="quiz-display" class="fade-in"></div>
+                <div id="quiz-actions" class="text-center mt-8 space-y-4 md:space-y-0 md:space-x-4">
+                    <button id="check-answers-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-transform transform hover:scale-105">Revisar Prueba</button>
+                    <button id="show-solutions-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-transform transform hover:scale-105 hidden">Mostrar Solucionario</button>
+                    <button id="reset-btn" class="bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-transform transform hover:scale-105">Generar Nueva Prueba</button>
+                </div>
+            </div>
+
+            <div id="solutions-container" class="hidden mt-8 fade-in"></div>
+        </main>
+
+        <footer class="text-center mt-8 text-slate-500">
+            <p>&copy; 2025 - Herramienta de Estudio para INF-343</p>
+        </footer>
+    </div>
+
+    <script>
+        const quizData = {
+            medio: {
+                unidad1: {
+                    vf: [
+                        { q: 'Un Sistema Distribuido es un conjunto de computadores autónomos que se presentan al usuario como un único sistema coherente.', a: 'V', j: 'Es la definición estándar de un sistema distribuido.', ref: 'Cap_1, Diap. 4' },
+                        { q: 'La transparencia de acceso oculta las diferencias en la representación de datos y cómo un recurso es accedido.', a: 'V', j: 'Es la definición de transparencia de acceso.', ref: 'Cap_1, Diap. 16' },
+                        { q: 'Un sistema abierto es aquel cuyo código fuente está disponible para cualquier persona.', a: 'F', j: 'Un sistema abierto se define por la estandarización de sus interfaces, no por la disponibilidad del código fuente (eso es software de código abierto).', ref: 'Cap_1, Diap. 14' },
+                        { q: 'La escalabilidad vertical (scale up) implica agregar más máquinas a un sistema para distribuir la carga.', a: 'F', j: 'Eso es escalabilidad horizontal (scale out). La vertical (scale up) es mejorar el hardware de una máquina existente.', ref: 'Cap_1, Diap. 15' },
+                        { q: 'Un middleware es una capa de software que se sitúa entre las aplicaciones y el sistema operativo para facilitar la comunicación en un sistema distribuido.', a: 'V', j: 'El middleware actúa como una capa de abstracción para facilitar el desarrollo de aplicaciones distribuidas.', ref: 'Cap_1, Diap. 35' },
+                        { q: 'En la arquitectura Cliente-Servidor, el servidor no puede iniciar la comunicación; siempre debe esperar una petición del cliente.', a: 'F', j: 'Aunque es el patrón común, los servidores pueden iniciar comunicaciones en escenarios como notificaciones push. La definición clásica se centra en la respuesta a peticiones.', ref: 'N/A' },
+                        { q: 'La arquitectura peer-to-peer (P2P) se caracteriza por tener un nodo central que gestiona toda la comunicación.', a: 'F', j: 'La arquitectura P2P es descentralizada por naturaleza, sin un nodo central.', ref: 'Cap_1, Diap. 61' },
+                        { q: 'REST (Representational State Transfer) es un protocolo de comunicación estricto.', a: 'F', j: 'REST es un estilo arquitectónico, no un protocolo. Se basa en principios y restricciones, utilizando estándares como HTTP.', ref: 'Cap_1, Diap. 48' },
+                        { q: 'En una arquitectura por capas, una capa superior solo puede invocar operaciones de la capa inmediatamente inferior.', a: 'F', j: 'En una arquitectura por capas estricta, sí. Pero en la práctica, se permiten excepciones para mejorar el rendimiento.', ref: 'Cap_1, Diap. 42' },
+                        { q: 'Los microservicios son un ejemplo de arquitectura monolítica.', a: 'F', j: 'Los microservicios son un enfoque de arquitectura distribuida, lo opuesto a una monolítica.', ref: 'Cap_1, Diap. 55' },
+                        { q: 'La heterogeneidad en un sistema distribuido se refiere únicamente a la variedad de hardware utilizado.', a: 'F', j: 'La heterogeneidad se refiere a redes, hardware, sistemas operativos y lenguajes de programación.', ref: 'Cap_1, Diap. 24' },
+                        { q: 'El objetivo principal de un balanceador de carga es asegurar la encriptación de los datos.', a: 'F', j: 'Su objetivo es distribuir la carga de trabajo entre múltiples servidores para mejorar la escalabilidad y disponibilidad.', ref: 'Cap_1, Diap. 88' },
+                        { q: 'Un sistema es tolerante a fallos si puede continuar operando, aunque de forma degradada, tras el fallo de uno o más de sus componentes.', a: 'V', j: 'Es la definición de tolerancia a fallos.', ref: 'Cap_1, Diap. 28' },
+                        { q: 'La transparencia de ubicación significa que el usuario no sabe dónde se encuentra físicamente un recurso.', a: 'V', j: 'Oculta la ubicación física del recurso.', ref: 'Cap_1, Diap. 17' },
+                        { q: 'La arquitectura basada en eventos promueve un bajo acoplamiento entre los componentes del sistema.', a: 'V', j: 'Los componentes no se conocen directamente, se comunican a través de eventos, lo que reduce el acoplamiento.', ref: 'Cap_1, Diap. 51' },
+                        { q: 'Sharding es una técnica para replicar una base de datos completa en múltiples servidores para mejorar la disponibilidad.', a: 'F', j: 'Sharding es particionar una base de datos horizontalmente. Replicación es copiarla.', ref: 'Cap_1, Diap. 97' },
+                        { q: 'Un CDN (Content Delivery Network) se utiliza principalmente para procesar lógica de negocio compleja.', a: 'F', j: 'Se utiliza para cachear contenido (principalmente estático) cerca de los usuarios para reducir la latencia.', ref: 'Cap_1, Diap. 93' },
+                        { q: 'La concurrencia es el principal desafío a resolver en los sistemas distribuidos, ya que los fallos son eventos excepcionales.', a: 'F', j: 'En sistemas distribuidos, el fallo es la regla, no la excepción. La concurrencia es uno de varios desafíos.', ref: 'Cap_1, Diap. 28' },
+                        { q: 'La arquitectura orientada a objetos en sistemas distribuidos se basa en que cada objeto es responsable de su propia comunicación y estado.', a: 'V', j: 'Los objetos encapsulan estado y comportamiento, y se comunican mediante invocación de métodos.', ref: 'Cap_1, Diap. 45' },
+                        { q: 'Un sistema distribuido siempre será más rápido que un sistema centralizado para cualquier tipo de tarea.', a: 'F', j: 'La comunicación de red introduce latencia, por lo que un sistema distribuido puede ser más lento para tareas que no se benefician del paralelismo.', ref: 'N/A' },
+                        { q: 'La transparencia de replicación oculta el hecho de que existen múltiples copias de un recurso.', a: 'V', j: 'Oculta que hay múltiples copias del recurso, presentándolas como una sola.', ref: 'Cap_1, Diap. 17' },
+                        { q: 'En una arquitectura de microservicios, todos los servicios deben compartir la misma base de datos para mantener la consistencia.', a: 'F', j: 'Una práctica clave en microservicios es que cada servicio gestione su propia base de datos.', ref: 'Cap_1, Diap. 56' },
+                        { q: 'El "estado" en REST se mantiene en el servidor para cada cliente que se conecta.', a: 'F', j: 'REST es "stateless" (sin estado). El servidor no mantiene el estado de la sesión del cliente entre peticiones.', ref: 'Cap_1, Diap. 48' },
+                        { q: 'Un sistema P2P estructurado utiliza algoritmos para organizar los nodos de una manera específica, facilitando la búsqueda de recursos.', a: 'V', j: 'Los P2P estructurados usan DHTs (Distributed Hash Tables) para mapear recursos a nodos específicos.', ref: 'Cap_1, Diap. 63' },
+                        { q: 'El escalamiento horizontal (scale out) se logra mejorando el hardware de un servidor existente (más CPU, más RAM).', a: 'F', j: 'Eso es escalamiento vertical. El horizontal es añadir más máquinas.', ref: 'Cap_1, Diap. 15' },
+                        { q: 'El principal objetivo de la transparencia en sistemas distribuidos es hacer el sistema más complejo para el desarrollador.', a: 'F', j: 'El objetivo es simplificar el sistema desde la perspectiva del usuario y del programador, ocultando su complejidad interna.', ref: 'Cap_1, Diap. 16' },
+                        { q: 'La política es el conjunto de mecanismos que un sistema implementa para alcanzar sus objetivos.', a: 'F', j: 'Es al revés. El mecanismo es cómo se implementa algo; la política es qué se va a hacer.', ref: 'Cap_1, Diap. 39' },
+                        { q: 'En el modelo cliente-servidor de 3 capas, la lógica de negocio se encuentra en el cliente.', a: 'F', j: 'En 3 capas (presentación, lógica, datos), la lógica de negocio está en la capa intermedia.', ref: 'Cap_1, Diap. 58' },
+                        { q: 'Una de las ventajas de los sistemas distribuidos es que son inherentemente más seguros que los sistemas centralizados.', a: 'F', j: 'La distribución introduce nuevos desafíos de seguridad (comunicación en red, múltiples puntos de ataque).', ref: 'Cap_1, Diap. 26' },
+                        { q: 'La arquitectura "Pipe-and-Filter" consiste en una cadena de componentes donde la salida de uno es la entrada del siguiente.', a: 'V', j: 'Es la definición de la arquitectura Pipe-and-Filter.', ref: 'Cap_1, Diap. 52' },
+                        { q: 'La apertura (Openness) de un sistema distribuido se refiere a su capacidad para ser extendido e interoperar con otros sistemas.', a: 'V', j: 'Es la definición de apertura.', ref: 'Cap_1, Diap. 14' },
+                        { q: 'Un proxy es un servidor que actúa como intermediario para las peticiones de los clientes que buscan recursos de otros servidores.', a: 'V', j: 'Actúa como intermediario, pudiendo ofrecer servicios como cache, control de acceso, etc.', ref: 'N/A' },
+                        { q: 'La latencia de red no es una preocupación significativa en el diseño de sistemas distribuidos modernos.', a: 'F', j: 'La latencia es una de las principales limitaciones y consideraciones en el diseño de SD.', ref: 'N/A' },
+                        { q: 'En una arquitectura descentralizada, no existe un punto único de fallo.', a: 'V', j: 'Al no depender de un componente central, el fallo de un nodo no derriba todo el sistema.', ref: 'Cap_1, Diap. 61' },
+                        { q: 'El DNS (Domain Name System) es un ejemplo de un sistema distribuido a gran escala.', a: 'V', j: 'Es un sistema jerárquico y distribuido globalmente para resolver nombres de dominio.', ref: 'N/A' },
+                        { q: 'La idempotencia en una operación HTTP significa que realizar la misma petición múltiples veces produce el mismo resultado que realizarla una sola vez.', a: 'V', j: 'Es la definición de idempotencia en el contexto de HTTP.', ref: 'N/A' },
+                        { q: 'La arquitectura monolítica facilita el despliegue independiente de funcionalidades.', a: 'F', j: 'La arquitectura monolítica dificulta el despliegue independiente, ya que toda la aplicación debe desplegarse como una unidad.', ref: 'Cap_1, Diap. 55' },
+                        { q: 'La transparencia de concurrencia permite que varios usuarios utilicen el sistema simultáneamente sin interferir entre ellos.', a: 'V', j: 'Es la definición de transparencia de concurrencia.', ref: 'Cap_1, Diap. 17' },
+                        { q: 'El "sharding" de una base de datos se realiza para mejorar la seguridad de los datos.', a: 'F', j: 'Se realiza para mejorar la escalabilidad y el rendimiento de las escrituras y lecturas.', ref: 'Cap_1, Diap. 97' },
+                        { q: 'Un sistema distribuido puede seguir funcionando correctamente incluso si la red que conecta sus componentes falla por completo.', a: 'F', j: 'La red es fundamental. Si falla por completo, los componentes no pueden comunicarse y el sistema distribuido deja de funcionar como un todo.', ref: 'N/A' }
+                    ],
+                    sm: [
+                        { q: '¿Cuál de las siguientes es una meta principal de un sistema distribuido?', o: ['Incrementar el acoplamiento entre componentes.', 'Hacer que los recursos sean fácilmente accesibles.', 'Centralizar todos los datos en una única máquina.', 'Eliminar la necesidad de una red.'], a: 'b', j: 'El objetivo principal es compartir recursos de forma controlada y eficiente.', ref: 'Cap_1, Diap. 12' },
+                        { q: 'En el contexto de escalabilidad, ¿qué describe el escalamiento horizontal?', o: ['Aumentar la RAM y CPU de un servidor existente.', 'Añadir más servidores al sistema.', 'Optimizar el código para que sea más eficiente.', 'Comprar un servidor más potente.'], a: 'b', j: 'El escalamiento horizontal (scale out) consiste en añadir más máquinas.', ref: 'Cap_1, Diap. 15' },
+                        { q: '¿Qué tipo de transparencia oculta al usuario dónde se encuentra un recurso?', o: ['Transparencia de Acceso.', 'Transparencia de Replicación.', 'Transparencia de Ubicación.', 'Transparencia de Fallos.'], a: 'c', j: 'La transparencia de ubicación oculta la localización física de un recurso.', ref: 'Cap_1, Diap. 17' },
+                        { q: 'La arquitectura REST se basa principalmente en:', o: ['Objetos distribuidos y métodos remotos.', 'Publicación y suscripción a eventos.', 'Un conjunto de recursos direccionables y operaciones estándar (verbos HTTP).', 'Colas de mensajes para comunicación asíncrona.'], a: 'c', j: 'RESTful se centra en recursos, identificadores (URIs) y un conjunto de operaciones bien definidas.', ref: 'Cap_1, Diap. 48' },
+                        { q: '¿Cuál es una característica clave de la arquitectura de microservicios?', o: ['Una única base de datos compartida por todos los servicios.', 'Despliegue de la aplicación como una única unidad (monolito).', 'Servicios débilmente acoplados y desplegables de forma independiente.', 'Comunicación exclusivamente síncrona entre servicios.'], a: 'c', j: 'Los microservicios se caracterizan por ser pequeños, autónomos y débilmente acoplados.', ref: 'Cap_1, Diap. 56' },
+                        { q: '¿Qué componente es responsable de distribuir las peticiones entrantes entre varios servidores?', o: ['CDN (Content Delivery Network).', 'DNS (Domain Name System).', 'Balanceador de Carga (Load Balancer).', 'API Gateway.'], a: 'c', j: 'Un balanceador de carga distribuye el tráfico para mejorar la disponibilidad y escalabilidad.', ref: 'Cap_1, Diap. 88' },
+                        { q: 'Una arquitectura donde los participantes son iguales y pueden actuar como cliente y servidor se conoce como:', o: ['Cliente-Servidor.', 'Peer-to-Peer (P2P).', 'Arquitectura por capas.', 'Monolítica.'], a: 'b', j: 'En P2P, los nodos (peers) tienen roles y capacidades equivalentes.', ref: 'Cap_1, Diap. 61' },
+                        { q: '"Ocultar el hecho de que un recurso puede ser movido a otra ubicación mientras está en uso" es el objetivo de la transparencia de:', o: ['Migración.', 'Reubicación.', 'Concurrencia.', 'a y b son correctas.'], a: 'd', j: 'Se usan ambos términos, aunque reubicación es más preciso para el movimiento durante el uso.', ref: 'Cap_1, Diap. 17' },
+                        { q: '¿Cuál de las siguientes afirmaciones describe mejor a un sistema abierto?', o: ['Un sistema que solo funciona en una plataforma de hardware específica.', 'Un sistema que ofrece servicios según reglas estándar en su sintaxis y semántica.', 'Un sistema cuyo código no puede ser modificado.', 'Un sistema que no puede interactuar con otros sistemas.'], a: 'b', j: 'La apertura se define por la conformidad con estándares bien definidos.', ref: 'Cap_1, Diap. 14' },
+                        { q: 'El particionamiento de una base de datos en fragmentos (shards) se realiza principalmente para:', o: ['Mejorar la escalabilidad y el rendimiento.', 'Simplificar las consultas y los backups.', 'Reducir los costos de hardware.', 'Aumentar la seguridad física de los datos.'], a: 'a', j: 'El sharding distribuye los datos y la carga, permitiendo escalar horizontalmente.', ref: 'Cap_1, Diap. 97' },
+                        { q: '¿Qué es un API Gateway en el contexto de microservicios?', o: ['Una base de datos que almacena la información de las APIs.', 'Un servicio que actúa como punto de entrada único para todas las peticiones de los clientes.', 'Una herramienta para documentar las APIs de los servicios.', 'Un balanceador de carga específico para APIs.'], a: 'b', j: 'El API Gateway centraliza el acceso externo a los microservicios, manejando enrutamiento, seguridad, etc.', ref: 'Cap_1, Diap. 57' },
+                        { q: '¿Cuál de las siguientes NO es una característica de los sistemas distribuidos?', o: ['Los componentes son autónomos.', 'Existe un reloj global compartido por todos los componentes.', 'Los componentes se comunican a través de una red.', 'Hay fallos parciales.'], a: 'b', j: 'La falta de un reloj global es una característica definitoria y un desafío fundamental en los sistemas distribuidos.', ref: 'Cap_1, Diap. 7' },
+                        { q: 'La arquitectura "Pipe-and-Filter" es un ejemplo de:', o: ['Arquitectura Orientada a Recursos.', 'Arquitectura Basada en Eventos.', 'Arquitectura de Flujo de Datos.', 'Arquitectura por Capas.'], a: 'c', j: 'Se centra en el flujo y la transformación de datos a través de una secuencia de componentes.', ref: 'Cap_1, Diap. 52' },
+                        { q: '¿Cuál es una desventaja común de una arquitectura monolítica?', o: ['La alta escalabilidad de componentes individuales.', 'La simplicidad en el despliegue de pequeños cambios.', 'La dificultad para adoptar nuevas tecnologías en partes del sistema.', 'La facilidad para que los equipos trabajen de forma independiente.'], a: 'c', j: 'En un monolito, la pila tecnológica está unificada, lo que dificulta la adopción de nuevas tecnologías para componentes específicos.', ref: 'Cap_1, Diap. 55' },
+                        { q: 'En el modelo Cliente-Servidor de N-capas (N-tier), ¿cuál es la principal responsabilidad de la capa de presentación?', o: ['Almacenar los datos de forma persistente.', 'Ejecutar la lógica de negocio.', 'Manejar la interfaz de usuario.', 'Gestionar la comunicación de red.'], a: 'c', j: 'La capa de presentación es responsable de la interacción con el usuario.', ref: 'Cap_1, Diap. 58' }
+                    ]
+                },
+                unidad2: {
+                    vf: [
+                        { q: 'En la comunicación síncrona, el proceso que envía un mensaje se bloquea hasta que el receptor lo recibe.', a: 'V', j: 'Es la definición de comunicación síncrona (bloqueante).', ref: 'Cap_2, Diap. 4' },
+                        { q: 'La comunicación asíncrona utiliza operaciones no bloqueantes, permitiendo que el emisor continúe su ejecución inmediatamente.', a: 'V', j: 'Es la definición de comunicación asíncrona (no bloqueante).', ref: 'Cap_2, Diap. 4' },
+                        { q: 'RPC (Remote Procedure Call) tiene como objetivo que la llamada a un procedimiento en una máquina remota sea igual que una llamada local.', a: 'V', j: 'Ese es el principal objetivo de RPC: abstraer la comunicación de red.', ref: 'Cap_2, Diap. 11' },
+                        { q: 'En RPC, los parámetros siempre se pasan por referencia para mejorar el rendimiento.', a: 'F', j: 'Los parámetros se pasan por valor. El contenido se copia del espacio de memoria del cliente al del servidor.', ref: 'Cap_2, Diap. 21' },
+                        { q: 'La serialización (o marshalling) es el proceso de convertir una estructura de datos en un formato que pueda ser almacenado o transmitido.', a: 'V', j: 'Es la definición de serialización.', ref: 'Cap_2, Diap. 35' },
+                        { q: 'JSON es un formato de serialización binario, lo que lo hace más eficiente en tamaño que XML.', a: 'F', j: 'JSON es un formato de texto, legible por humanos. Protocol Buffers es binario.', ref: 'Cap_2, Diap. 40' },
+                        { q: 'RMI (Remote Method Invocation) es un mecanismo específico de Java y solo permite la comunicación entre objetos Java.', a: 'V', j: 'RMI es la implementación de invocación remota del ecosistema Java.', ref: 'Cap_2, Diap. 26' },
+                        { q: 'La comunicación indirecta requiere que el emisor y el receptor estén activos al mismo tiempo.', a: 'F', j: 'La comunicación indirecta (a través de un intermediario) permite el desacoplamiento temporal, por lo que no necesitan estar activos a la vez.', ref: 'Cap_2, Diap. 45' },
+                        { q: 'Un sistema de colas de mensajes (Message Queue) desacopla al productor del consumidor en el tiempo y en el espacio.', a: 'V', j: 'Es la principal ventaja de los sistemas de colas.', ref: 'Cap_2, Diap. 57' },
+                        { q: 'En un sistema Publish-Subscribe, el publicador debe conocer la identidad y la ubicación de todos los suscriptores.', a: 'F', j: 'El publicador no conoce a los suscriptores; solo publica en un tópico o canal. Esto es desacoplamiento espacial.', ref: 'Cap_2, Diap. 53' },
+                        { q: 'gRPC utiliza HTTP/1.1 por defecto para la comunicación.', a: 'F', j: 'gRPC utiliza HTTP/2, lo que le permite tener características como streaming bidireccional y multiplexación.', ref: 'Cap_2, Diap. 30' },
+                        { q: 'Los Protocol Buffers son un mecanismo de serialización de datos binarios desarrollado por Google.', a: 'V', j: 'Es el formato de serialización de gRPC, conocido por su eficiencia.', ref: 'Cap_2, Diap. 30' },
+                        { q: 'La comunicación grupal (multicast) garantiza que un mensaje se entrega a todos los miembros de un grupo o a ninguno.', a: 'V', j: 'Es la garantía de la atomicidad en la comunicación grupal.', ref: 'Cap_2, Diap. 49' },
+                        { q: 'Un stub en el cliente es el responsable de empaquetar los parámetros de una llamada RPC y enviarlos al servidor.', a: 'V', j: 'El stub del cliente empaqueta (serializa) los argumentos para la transmisión.', ref: 'Cap_2, Diap. 14' },
+                        { q: 'La semántica "at-most-once" garantiza que un mensaje se entregará como máximo una vez, pero podría no entregarse.', a: 'V', j: 'Es la definición de "at-most-once".', ref: 'Pauta Certamen 1' },
+                        { q: 'La comunicación persistente es aquella en la que el mensaje se almacena hasta que el receptor está listo para recibirlo.', a: 'V', j: 'La persistencia implica que el intermediario almacena el mensaje de forma segura.', ref: 'Cap_2, Diap. 47' },
+                        { q: 'El desacoplamiento espacial significa que los procesos no necesitan estar activos al mismo tiempo para comunicarse.', a: 'F', j: 'El desacoplamiento espacial significa que no necesitan conocerse. El desacoplamiento temporal es el que se refiere a no necesitar estar activos al mismo tiempo.', ref: 'Cap_2, Diap. 45' },
+                        { q: 'En una comunicación directa, los mensajes se envían a un intermediario en lugar de directamente al receptor.', a: 'F', j: 'La comunicación directa es cuando el emisor envía el mensaje directamente al receptor, sin intermediarios.', ref: 'Cap_2, Diap. 44' },
+                        { q: 'El skeleton en el servidor es el encargado de desempacar los parámetros de una llamada RPC y ejecutar el procedimiento correspondiente.', a: 'V', j: 'El skeleton del servidor desempaca (deserializa) los argumentos y llama a la función local.', ref: 'Cap_2, Diap. 14' },
+                        { q: 'HTTP es un ejemplo de protocolo de comunicación síncrono y sin estado.', a: 'V', j: 'Cada petición HTTP es independiente y el cliente espera una respuesta antes de continuar (síncrono).', ref: 'N/A' },
+                        { q: 'La idempotencia de una llamada RPC significa que ejecutarla múltiples veces tiene el mismo efecto que ejecutarla una sola vez.', a: 'V', j: 'Significa que múltiples ejecuciones idénticas no cambian el estado del sistema después de la primera ejecución exitosa.', ref: 'N/A' },
+                        { q: 'Los sistemas de tuplas (Tuple Spaces) ofrecen una comunicación anónima y persistente.', a: 'V', j: 'Las tuplas se escriben en un "espacio" compartido y pueden ser leídas por cualquier proceso que busque un patrón coincidente, sin conocer al emisor.', ref: 'N/A' },
+                        { q: 'XML es un formato legible por humanos, lo que facilita la depuración en comparación con los formatos binarios.', a: 'V', j: 'Esta legibilidad es una de sus principales ventajas frente a formatos binarios.', ref: 'Cap_2, Diap. 39' },
+                        { q: 'En RMI, es posible pasar objetos como parámetros en las llamadas a métodos remotos.', a: 'V', j: 'Esta es una de las principales ventajas de RMI, ya que se integra con el modelo de objetos de Java.', ref: 'Cap_2, Diap. 26' },
+                        { q: 'La principal ventaja de la comunicación asíncrona es su simplicidad en el manejo de errores.', a: 'F', j: 'Su principal desventaja es la complejidad en el manejo de errores y el flujo del programa.', ref: 'N/A' },
+                        { q: 'Un broker de mensajes es un componente central en muchos sistemas de Publish-Subscribe.', a: 'V', j: 'El broker es el intermediario que gestiona los tópicos, las suscripciones y el enrutamiento de mensajes.', ref: 'Cap_2, Diap. 53' },
+                        { q: 'gRPC soporta streaming bidireccional, permitiendo al cliente y al servidor enviar una secuencia de mensajes.', a: 'V', j: 'Es una de las características más potentes de gRPC, habilitada por HTTP/2.', ref: 'Cap_2, Diap. 31' },
+                        { q: 'La semántica "at-least-once" asegura que un mensaje se entregará al menos una vez, lo que podría implicar entregas duplicadas.', a: 'V', j: 'Es la definición de "at-least-once".', ref: 'Pauta Certamen 1' },
+                        { q: 'El desacoplamiento temporal (time uncoupling) significa que el emisor y el receptor no necesitan conocerse entre sí.', a: 'F', j: 'Eso es desacoplamiento espacial. El desacoplamiento temporal es no necesitar estar activos al mismo tiempo.', ref: 'Cap_2, Diap. 45' },
+                        { q: 'La comunicación transitoria (transient) requiere que tanto el emisor como el receptor estén activos durante la comunicación.', a: 'V', j: 'La comunicación transitoria no se almacena en un intermediario, por lo que requiere que las partes estén disponibles.', ref: 'Cap_2, Diap. 47' },
+                        { q: 'Un problema común en RPC es manejar los fallos de red, ya que la llamada parece local.', a: 'V', j: 'La transparencia de RPC oculta la complejidad de la red, lo que puede dificultar el manejo de fallos parciales.', ref: 'N/A' },
+                        { q: 'En los sistemas de colas de mensajes, los mensajes son típicamente procesados en orden FIFO (First-In, First-Out).', a: 'V', j: 'Aunque se pueden implementar colas de prioridad, el comportamiento por defecto suele ser FIFO.', ref: 'Cap_2, Diap. 57' },
+                        { q: 'La capa de presentación en el modelo OSI es la responsable de la serialización de datos.', a: 'V', j: 'La capa 6 (Presentación) se encarga de la sintaxis y semántica de los datos, incluyendo la serialización.', ref: 'N/A' },
+                        { q: 'Un socket es un punto final para la comunicación entre dos procesos a través de una red.', a: 'V', j: 'Es la interfaz que el sistema operativo proporciona a las aplicaciones para la comunicación en red.', ref: 'N/A' },
+                        { q: 'La comunicación indirecta siempre es menos eficiente que la comunicación directa.', a: 'F', j: 'Depende del escenario. Puede ser más lenta por el intermediario, pero aumenta la resiliencia y escalabilidad, lo que puede mejorar el rendimiento global del sistema.', ref: 'N/A' },
+                        { q: 'El objetivo de un Interface Definition Language (IDL) es describir la interfaz de un servicio independientemente del lenguaje de programación.', a: 'V', j: 'Esa es la función principal de un IDL.', ref: 'Cap_2, Diap. 30' },
+                        { q: 'Amazon SQS es un ejemplo de un servicio de cola de mensajes.', a: 'V', j: 'Es un servicio de colas gestionado en AWS.', ref: 'Cap_2, Diap. 67' },
+                        { q: 'En un sistema Pub/Sub, un tópico es un canal al que los publicadores envían mensajes y del que los suscriptores reciben mensajes.', a: 'V', j: 'El tópico actúa como el canal de comunicación nombrado.', ref: 'Cap_2, Diap. 53' },
+                        { q: 'La conversión de datos a un formato canónico (estándar) es una técnica para manejar la heterogeneidad en RPC.', a: 'V', j: 'Es una de las estrategias para manejar diferencias en la representación de datos (endianness, etc.).', ref: 'N/A' },
+                        { q: 'La comunicación síncrona siempre es preferible en sistemas distribuidos por su simplicidad.', a: 'F', j: 'La comunicación asíncrona suele ser preferible en sistemas distribuidos a gran escala para mejorar la escalabilidad y la resiliencia.', ref: 'N/A' }
+                    ],
+                    sm: [
+                        { q: 'El proceso de convertir una estructura de datos en un formato de bytes para su transmisión se conoce como:', o: ['Deserialización.', 'Marshalling (Serialización).', 'Invocación.', 'Binding.'], a: 'b', j: 'Marshalling o serialización es el término correcto para este proceso.', ref: 'Cap_2, Diap. 35' },
+                        { q: '¿Cuál de las siguientes características corresponde a la comunicación síncrona?', o: ['El emisor continúa inmediatamente después de enviar.', 'Utiliza un intermediario para almacenar mensajes.', 'El emisor se bloquea hasta que la petición es procesada o recibida.', 'Es ideal para sistemas con alta latencia de red.'], a: 'c', j: 'La comunicación síncrona es bloqueante por definición.', ref: 'Cap_2, Diap. 4' },
+                        { q: 'En el paradigma RPC, ¿qué componente del lado del cliente es responsable de hacer que la llamada remota parezca local?', o: ['Skeleton.', 'Stub.', 'Broker.', 'Dispatcher.'], a: 'b', j: 'El stub del cliente proporciona la interfaz local que oculta la comunicación de red.', ref: 'Cap_2, Diap. 14' },
+                        { q: '¿Cuál de las siguientes es una característica clave de gRPC?', o: ['Usa JSON como formato de datos por defecto.', 'Se basa en el protocolo HTTP/1.1.', 'Utiliza Protocol Buffers para la serialización.', 'Es un estándar exclusivo para la comunicación entre navegadores web.'], a: 'c', j: 'gRPC utiliza Protocol Buffers para una serialización eficiente y se basa en HTTP/2.', ref: 'Cap_2, Diap. 30' },
+                        { q: 'Un sistema donde los componentes publican mensajes en "tópicos" sin saber quién los recibirá se basa en el patrón:', o: ['RPC.', 'Cola de Mensajes.', 'Publish-Subscribe.', 'RMI.'], a: 'c', j: 'Este es el patrón fundamental de Publish-Subscribe (Pub/Sub).', ref: 'Cap_2, Diap. 53' },
+                        { q: '¿Qué tipo de desacoplamiento permite que el emisor y el receptor no necesiten estar activos al mismo tiempo?', o: ['Desacoplamiento espacial.', 'Desacoplamiento temporal.', 'Acoplamiento fuerte.', 'Acoplamiento de datos.'], a: 'b', j: 'El desacoplamiento temporal se refiere a la independencia en el tiempo de los componentes.', ref: 'Cap_2, Diap. 45' },
+                        { q: 'La semántica de entrega de mensajes que garantiza que un mensaje será procesado exactamente una vez es:', o: ['At-most-once.', 'At-least-once.', 'Exactly-once.', 'Best-effort.'], a: 'c', j: 'Exactly-once es la semántica más fuerte, aunque difícil de lograr.', ref: 'Pauta Certamen 1' },
+                        { q: '¿Cuál de estos formatos de datos es binario y no legible por humanos?', o: ['JSON.', 'XML.', 'Protocol Buffers.', 'YAML.'], a: 'c', j: 'Protocol Buffers es un formato binario optimizado para el rendimiento.', ref: 'Cap_2, Diap. 41' },
+                        { q: 'En RMI de Java, la interfaz remota debe extender de:', o: ['`java.rmi.Server`', '`java.io.Serializable`', '`java.rmi.Remote`', '`java.lang.Object`'], a: 'c', j: 'La interfaz `java.rmi.Remote` es una interfaz marcadora para identificar objetos remotos.', ref: 'Cap_2, Diap. 26' },
+                        { q: '¿Cuál es la principal ventaja de la comunicación indirecta?', o: ['Menor latencia.', 'Mayor rendimiento.', 'Mayor desacoplamiento entre componentes.', 'Simplicidad en la programación.'], a: 'c', j: 'La comunicación indirecta introduce un intermediario que desacopla a los comunicantes.', ref: 'Cap_2, Diap. 45' },
+                        { q: 'El concepto de "pasar una secuencia de bytes a un destino" corresponde a la operación de:', o: ['Receive.', 'Send.', 'Connect.', 'Bind.'], a: 'b', j: 'Es la definición fundamental de la operación de envío.', ref: 'Cap_2, Diap. 3' },
+                        { q: '¿Qué componente se encarga en el lado del servidor de recibir la petición, desempacar los argumentos y llamar al procedimiento real?', o: ['Client Stub.', 'Server Stub (o Skeleton).', 'API Gateway.', 'Load Balancer.'], a: 'b', j: 'El Server Stub o Skeleton es la contraparte del Client Stub en el servidor.', ref: 'Cap_2, Diap. 14' },
+                        { q: 'Amazon SQS y RabbitMQ son ejemplos de:', o: ['Sistemas Publish-Subscribe.', 'Sistemas de Colas de Mensajes.', 'Frameworks de RPC.', 'Servidores de bases de datos.'], a: 'b', j: 'Ambos son sistemas de colas de mensajes muy populares.', ref: 'Cap_2, Diap. 57' },
+                        { q: '¿Qué significa que la comunicación sea persistente?', o: ['Que la conexión de red se mantiene siempre abierta.', 'Que el mensaje se almacena por un intermediario hasta que se puede entregar.', 'Que el emisor reintenta el envío hasta que tiene éxito.', 'Que el mensaje se guarda en una base de datos en el cliente.'], a: 'b', j: 'La persistencia asegura que el mensaje no se pierda si el receptor no está disponible.', ref: 'Cap_2, Diap. 47' },
+                        { q: 'El desacoplamiento espacial en la comunicación indirecta implica que:', o: ['El emisor y el receptor no necesitan estar ejecutándose al mismo tiempo.', 'El emisor y el receptor no necesitan conocerse explícitamente (dirección, identidad).', 'Los componentes pueden estar físicamente muy lejos.', 'La comunicación no depende del espacio disponible en memoria.'], a: 'b', j: 'El desacoplamiento espacial se refiere a la independencia de la ubicación e identidad.', ref: 'Cap_2, Diap. 45' }
+                    ]
+                },
+                unidad3: {
+                    vf: [
+                        { q: 'La disponibilidad de un sistema es la probabilidad de que esté funcionando correctamente en un instante de tiempo dado.', a: 'V', j: 'Disponibilidad es P(funcional en t), fiabilidad es la continuidad del servicio.', ref: 'Cap_3, Diap. 4' },
+                        { q: 'Una falla parcial es una característica que distingue a los sistemas distribuidos de los sistemas centralizados.', a: 'V', j: 'En un sistema centralizado, un fallo suele ser total. En uno distribuido, una parte puede fallar mientras otras siguen funcionando.', ref: 'Cap_3, Diap. 3' },
+                        { q: 'La confiabilidad (Reliability) se refiere a la capacidad de un sistema de funcionar continuamente sin fallos.', a: 'V', j: 'Es la definición de fiabilidad (reliability).', ref: 'Cap_3, Diap. 4' },
+                        { q: 'Un fallo de tipo "crash" (parada) es aquel en el que un servidor se detiene pero funciona correctamente hasta ese momento.', a: 'V', j: 'Es la definición de "fail-stop" o fallo por detención.', ref: 'Cap_3, Diap. 8' },
+                        { q: 'Los fallos bizantinos son los más fáciles de detectar y manejar.', a: 'F', j: 'Son los más difíciles, ya que un componente puede enviar información incorrecta o maliciosa.', ref: 'Cap_3, Diap. 9' },
+                        { q: 'La redundancia física consiste en añadir hardware, software o procesos extra para que el sistema tolere la pérdida de componentes.', a: 'V', j: 'Es la definición de redundancia física.', ref: 'Cap_3, Diap. 11' },
+                        { q: 'La redundancia de información, como el uso de checksums, ayuda a recuperarse de fallos de hardware.', a: 'F', j: 'Ayuda a detectar si la información se corrompió, pero no a recuperarse de un fallo de hardware (ej. disco roto). Para eso se necesita redundancia física.', ref: 'Cap_3, Diap. 11' },
+                        { q: 'El objetivo de la tolerancia a fallos es eliminar por completo la posibilidad de que ocurran fallos en el sistema.', a: 'F', j: 'El objetivo es permitir que el sistema continúe funcionando a pesar de los fallos, no eliminarlos.', ref: 'Cap_3, Diap. 6' },
+                        { q: 'En la replicación activa, todas las réplicas procesan cada petición de forma concurrente.', a: 'V', j: 'Es el principio de la replicación activa o estado-máquina.', ref: 'Cap_3, Diap. 21' },
+                        { q: 'La replicación pasiva (primary-backup) es más compleja de implementar que la replicación activa.', a: 'F', j: 'La replicación pasiva es generalmente más simple, ya que solo el primario procesa las peticiones, evitando problemas de ordenamiento de operaciones.', ref: 'Cap_3, Diap. 23' },
+                        { q: 'El protocolo de commit de dos fases (2PC) garantiza que una transacción distribuida sea atómica.', a: 'V', j: 'El objetivo de 2PC es asegurar que todos los participantes de una transacción distribuida hagan commit o todos hagan abort.', ref: 'Cap_3, Diap. 42' },
+                        { q: 'En 2PC, si el coordinador falla después de enviar la decisión final (commit/abort), el sistema no puede recuperarse.', a: 'F', j: 'Si el coordinador falla antes de enviar la decisión, el sistema se bloquea. Si falla después, los participantes pueden consultar a otros para saber la decisión.', ref: 'N/A' },
+                        { q: 'Una máscara de fallos (failure masking) es una técnica para ocultar la ocurrencia de fallos a otros procesos.', a: 'V', j: 'Es la definición de enmascaramiento de fallos.', ref: 'Cap_3, Diap. 10' },
+                        { q: 'Un grupo de procesos jerárquico es más resiliente que un grupo plano (flat group) porque tiene un líder claro.', a: 'F', j: 'Un grupo jerárquico tiene un punto único de fallo (el líder). Un grupo plano es más resiliente a fallos individuales.', ref: 'Cap_3, Diap. 29' },
+                        { q: 'El multicast atómico asegura que un mensaje es recibido por todos los miembros del grupo o por ninguno.', a: 'V', j: 'Es la garantía de atomicidad del multicast.', ref: 'Cap_3, Diap. 36' },
+                        { q: 'La alta disponibilidad se mide comúnmente con "nueves" (ej. 99.999% de uptime).', a: 'V', j: 'Por ejemplo, 99.999% es conocido como "cinco nueves".', ref: 'Cap_3, Diap. 5' },
+                        { q: 'Un fallo de omisión ocurre cuando un servidor no responde a una petición.', a: 'V', j: 'El servidor falla en producir una respuesta.', ref: 'Cap_3, Diap. 8' },
+                        { q: 'La redundancia temporal consiste en ejecutar una acción múltiples veces, como reintentar una transacción.', a: 'V', j: 'Reintentar una operación es un ejemplo de redundancia en el tiempo.', ref: 'Cap_3, Diap. 11' },
+                        { q: 'En la replicación activa, si una réplica falla, el sistema puede continuar operando sin interrupción con las réplicas restantes.', a: 'V', j: 'Es la principal ventaja de la replicación activa: el failover es instantáneo.', ref: 'Cap_3, Diap. 21' },
+                        { q: 'El principal problema de la replicación pasiva es el tiempo de recuperación (failover) cuando el primario falla.', a: 'V', j: 'El proceso de detectar el fallo del primario y promover un backup a nuevo primario (failover) introduce una interrupción.', ref: 'Cap_3, Diap. 23' },
+                        { q: 'Un "Fault Domain" en Azure es una agrupación de hardware que comparte una fuente de alimentación y un conmutador de red comunes.', a: 'V', j: 'Es la definición de Fault Domain.', ref: 'Cap_3, Diap. 62' },
+                        { q: 'El protocolo de commit de tres fases (3PC) resuelve el problema de bloqueo del 2PC.', a: 'V', j: '3PC añade un estado intermedio ("prepared-to-commit") para evitar el bloqueo del 2PC si el coordinador falla.', ref: 'N/A' },
+                        { q: 'La seguridad (Safety) de un sistema se refiere a que, si falla, no ocurran eventos catastróficos.', a: 'V', j: 'Es la definición de "safety".', ref: 'Cap_3, Diap. 4' },
+                        { q: 'La mantenibilidad es la facilidad con la que un sistema que ha fallado puede ser reparado.', a: 'V', j: 'Es la definición de "maintainability".', ref: 'Cap_3, Diap. 4' },
+                        { q: 'La replicación activa puede tolerar fallos bizantinos.', a: 'V', j: 'Como todas las réplicas procesan la petición, se puede realizar una votación sobre el resultado para enmascarar una réplica bizantina.', ref: 'Cap_3, Diap. 21' },
+                        { q: 'El "checkpointing" es una técnica donde se guarda periódicamente el estado de un proceso para poder recuperarlo tras un fallo.', a: 'V', j: 'Es una técnica fundamental para la recuperación hacia atrás.', ref: 'Cap_3, Diap. 48' },
+                        { q: 'Un fallo de temporización (timing failure) ocurre cuando la respuesta de un servidor llega fuera del intervalo de tiempo especificado.', a: 'V', j: 'El fallo está en el tiempo de respuesta, no en el contenido.', ref: 'Cap_3, Diap. 8' },
+                        { q: 'En la replicación pasiva, solo el servidor primario recibe y procesa las peticiones de escritura.', a: 'V', j: 'El primario procesa escrituras y luego las propaga a los backups.', ref: 'Cap_3, Diap. 23' },
+                        { q: 'El 2PC es un protocolo no bloqueante.', a: 'F', j: 'Es un protocolo bloqueante si el coordinador falla.', ref: 'Cap_3, Diap. 46' },
+                        { q: 'Una "Availability Zone" en la nube es una ubicación física independiente dentro de una misma región, con su propia energía, refrigeración y red.', a: 'V', j: 'Es la definición de Availability Zone.', ref: 'Cap_3, Diap. 62' },
+                        { q: 'La resiliencia es la capacidad de un sistema para adaptarse y recuperarse de fallos.', a: 'V', j: 'Es una definición moderna de resiliencia.', ref: 'Cap_3, Diap. 55' },
+                        { q: 'La replicación es la única técnica para lograr tolerancia a fallos.', a: 'F', j: 'Es la técnica más común para la redundancia física, pero existen otras como la redundancia de información y tiempo.', ref: 'Cap_3, Diap. 11' },
+                        { q: 'En la fase de votación del 2PC, los participantes informan al coordinador si están listos para hacer commit.', a: 'V', j: 'Es la primera fase del protocolo.', ref: 'Cap_3, Diap. 43' },
+                        { q: 'Si un participante vota "NO" en el 2PC, el coordinador puede decidir hacer commit de todas formas.', a: 'F', j: 'Si un solo participante vota "NO" (abort), la transacción completa debe ser abortada.', ref: 'Cap_3, Diap. 43' },
+                        { q: 'Un sistema con 99% de disponibilidad puede estar caído más de 3 días al año.', a: 'V', j: '1% de un año son aproximadamente 3.65 días.', ref: 'Cap_3, Diap. 5' },
+                        { q: 'Los fallos de software son generalmente más predecibles que los fallos de hardware.', a: 'F', j: 'Los fallos de software (bugs) son a menudo más sutiles, dependientes del estado y difíciles de predecir y reproducir.', ref: 'N/A' },
+                        { q: 'La recuperación hacia atrás (backward recovery) implica llevar el sistema a un estado anterior correcto (checkpoint).', a: 'V', j: 'Implica restaurar un estado previo consistente.', ref: 'Cap_3, Diap. 48' },
+                        { q: 'La replicación pasiva es más eficiente en términos de recursos que la replicación activa, ya que solo un servidor procesa la petición.', a: 'V', j: 'En la replicación activa, todas las `n` réplicas consumen CPU para procesar la petición. En la pasiva, solo 1 lo hace.', ref: 'N/A' },
+                        { q: 'El problema de los "dos generales" demuestra que es imposible alcanzar un acuerdo en una red no confiable.', a: 'V', j: 'Ilustra la imposibilidad de alcanzar un acuerdo con certeza en una red donde los mensajes se pueden perder.', ref: 'N/A' },
+                        { q: 'Un fallo bizantino es cuando un componente produce resultados incorrectos o arbitrarios, pudiendo incluso hacerse pasar por un componente que funciona bien.', a: 'V', j: 'Es la definición de un fallo arbitrario o bizantino.', ref: 'Cap_3, Diap. 9' }
+                    ],
+                    sm: [
+                        { q: 'Un servidor que responde a las peticiones con datos incorrectos, pero sigue funcionando, está exhibiendo un fallo de tipo:', o: ['Crash.', 'Omisión.', 'Bizantino.', 'Temporización.'], a: 'c', j: 'Un fallo bizantino o arbitrario implica un comportamiento incorrecto, no solo una detención.', ref: 'Cap_3, Diap. 9' },
+                        { q: '¿Cuál de las siguientes es la principal ventaja de la replicación activa?', o: ['Es más simple de implementar que la pasiva.', 'Consume menos recursos computacionales.', 'Tiene un tiempo de recuperación casi instantáneo ante un fallo.', 'No requiere un protocolo de acuerdo entre réplicas.'], a: 'c', j: 'Al procesar todas las réplicas en paralelo, no hay un proceso de failover.', ref: 'Cap_3, Diap. 21' },
+                        { q: 'El protocolo de commit de dos fases (2PC) es vulnerable al fallo de:', o: ['Un participante antes de la fase de votación.', 'Un participante después de votar "commit".', 'El coordinador durante la fase de votación (bloqueo).', 'Todos los anteriores.'], a: 'c', j: 'El fallo del coordinador mientras los participantes esperan la decisión final bloquea a esos participantes.', ref: 'Cap_3, Diap. 46' },
+                        { q: 'La propiedad que asegura que un sistema está listo para ser utilizado inmediatamente se llama:', o: ['Fiabilidad (Reliability).', 'Disponibilidad (Availability).', 'Seguridad (Safety).', 'Mantenibilidad.'], a: 'b', j: 'Es la definición de disponibilidad.', ref: 'Cap_3, Diap. 4' },
+                        { q: 'Añadir bits de paridad a los datos para detectar errores es un ejemplo de:', o: ['Redundancia física.', 'Redundancia temporal.', 'Redundancia de información.', 'Replicación.'], a: 'c', j: 'Se añade información extra (los bits de paridad) para aumentar la robustez.', ref: 'Cap_3, Diap. 11' },
+                        { q: 'En la replicación pasiva (Primary-Backup), si el primario falla, el proceso de que un backup tome su lugar se llama:', o: ['Failover.', 'Checkpointing.', 'Commit.', 'Multicast.'], a: 'a', j: 'Failover es el proceso de cambiar a un sistema de respaldo.', ref: 'Cap_3, Diap. 23' },
+                        { q: 'Un sistema con una disponibilidad de "cinco nueves" (99.999%) está inactivo aproximadamente:', o: ['5 minutos por año.', '1 hora por año.', '1 día por año.', '5 segundos por año.'], a: 'a', j: 'Un 0.001% de inactividad al año equivale a unos 5.26 minutos.', ref: 'Cap_3, Diap. 5' },
+                        { q: '¿Qué fase del protocolo 2PC es bloqueante si el coordinador falla?', o: ['La fase de votación (cuando el coordinador espera los votos).', 'La fase de decisión (cuando los participantes esperan la decisión final).', 'Ambas fases.', 'Ninguna de las fases es bloqueante.'], a: 'b', j: 'Si los participantes han votado COMMIT y esperan la decisión global, quedan bloqueados si el coordinador falla.', ref: 'Cap_3, Diap. 46' },
+                        { q: 'Una "Availability Zone" en un proveedor de nube está diseñada para proteger contra:', o: ['Fallos de una máquina virtual individual.', 'Fallos de un rack de servidores.', 'Fallos de un centro de datos completo (e.g., por un incendio o inundación).', 'Fallos de una región geográfica completa.'], a: 'c', j: 'Una AZ es un centro de datos aislado físicamente.', ref: 'Cap_3, Diap. 62' },
+                        { q: '¿Cuál es el principal objetivo de un multicast atómico?', o: ['Enviar un mensaje al miembro más cercano del grupo.', 'Garantizar que el mensaje llegue lo más rápido posible.', 'Asegurar la propiedad "todo o nada" en la entrega de mensajes a un grupo.', 'Encriptar los mensajes enviados a un grupo.'], a: 'c', j: 'Garantiza que el mensaje es recibido por todos los miembros correctos o por ninguno.', ref: 'Cap_3, Diap. 36' },
+                        { q: 'La capacidad de un sistema para seguir funcionando sin interrupción a pesar de los fallos es:', o: ['Tolerancia a fallos.', 'Fiabilidad continua.', 'Disponibilidad.', 'Todas las anteriores.'], a: 'd', j: 'Todos los conceptos están relacionados con la operación continua frente a fallos.', ref: 'N/A' },
+                        { q: 'Reintentar una operación de base de datos que falló es un ejemplo de:', o: ['Redundancia física.', 'Redundancia de información.', 'Redundancia temporal.', 'Recuperación hacia atrás.'], a: 'c', j: 'Se repite la operación en el tiempo.', ref: 'Cap_3, Diap. 11' },
+                        { q: 'En la replicación activa, ¿cómo se asegura que todas las réplicas se mantengan consistentes?', o: ['El primario envía actualizaciones a los backups.', 'Todas las réplicas reciben y procesan la misma secuencia de operaciones determinísticas.', 'Se utiliza un protocolo de votación después de cada operación.', 'No es necesario, la consistencia se logra eventualmente.'], a: 'b', j: 'Se requiere un multicast ordenado y operaciones determinísticas.', ref: 'Cap_3, Diap. 21' },
+                        { q: 'Un fallo de omisión en el envío ocurre cuando:', o: ['Un proceso se detiene por completo.', 'Un proceso no logra enviar un mensaje que debía enviar.', 'Un proceso envía un mensaje corrupto.', 'Un proceso responde demasiado tarde.'], a: 'b', j: 'Es un fallo de omisión específico del envío de mensajes.', ref: 'Cap_3, Diap. 8' },
+                        { q: 'El concepto que cubre la disponibilidad, fiabilidad, seguridad y mantenibilidad de un sistema se conoce como:', o: ['Escalabilidad.', 'Resiliencia.', 'Confiabilidad (Dependability).', 'Tolerancia a fallos.'], a: 'c', j: 'Dependability es el término paraguas para estas propiedades.', ref: 'Cap_3, Diap. 4' }
+                    ]
+                }
+            },
+            dificil: {
+                unidad1: {
+                    vf: [
+                        { q: 'La transparencia de migración es trivial de implementar en sistemas donde los clientes cachean la dirección IP del servidor.', a: 'F', j: 'Es muy difícil, porque el cliente tendría una referencia (la IP cacheada) a la ubicación antigua. Se necesitan mecanismos de indirección.', ref: 'Cap_1, Diap. 17' },
+                        { q: 'Un sistema perfectamente escalable es aquel cuyo rendimiento no se degrada en absoluto al añadir más usuarios o recursos.', a: 'F', j: 'Un sistema perfectamente escalable es un ideal teórico. En la práctica, siempre hay cuellos de botella o sobrecarga de coordinación.', ref: 'Cap_1, Diap. 15' },
+                        { q: 'La principal diferencia entre un sistema distribuido y una red de computadores es la existencia de una capa de middleware.', a: 'V', j: 'La capa de middleware es la que proporciona la abstracción de un "sistema único y coherente" sobre una red de máquinas autónomas.', ref: 'Cap_1, Diap. 35' },
+                        { q: 'En una arquitectura estrictamente por capas, una capa puede invocar servicios de cualquier otra capa para optimizar la latencia.', a: 'F', j: 'Una arquitectura estrictamente por capas solo permite la comunicación con la capa adyacente inferior.', ref: 'Cap_1, Diap. 42' },
+                        { q: 'La arquitectura de microservicios elimina la necesidad de comunicación entre procesos, ya que cada servicio es autónomo.', a: 'F', j: 'Al contrario, la arquitectura de microservicios se basa fundamentalmente en la comunicación entre procesos (servicios) a través de la red.', ref: 'Cap_1, Diap. 56' },
+                        { q: 'Un sistema P2P no estructurado garantiza que un recurso siempre será encontrado si existe en la red.', a: 'F', j: 'No lo garantiza. La búsqueda puede fallar o ser ineficiente. Los P2P estructurados (con DHT) sí ofrecen garantías de búsqueda.', ref: 'Cap_1, Diap. 63' },
+                        { q: 'El "Principio de Diseño de Extremo a Extremo" sugiere que la lógica específica de la aplicación no debe implementarse en las capas inferiores de la red.', a: 'V', j: 'Este principio aboga por mantener la lógica de control y confiabilidad en los puntos finales de la comunicación.', ref: 'N/A' },
+                        { q: 'La heterogeneidad semántica, donde dos servicios interpretan un mismo término de forma diferente, es un desafío de la apertura (openness).', a: 'V', j: 'La apertura requiere interfaces bien definidas (sintaxis), pero la interoperabilidad real también depende de que el significado (semántica) sea compartido.', ref: 'N/A' },
+                        { q: 'Una arquitectura basada en eventos que utiliza comunicación asíncrona es inherentemente inadecuada para procesar transacciones que requieren una respuesta inmediata.', a: 'V', j: 'Si bien se pueden diseñar flujos para respuestas rápidas, la naturaleza asíncrona no garantiza una respuesta inmediata y acotada.', ref: 'N/A' },
+                        { q: 'El sharding de una base de datos soluciona el problema de escalabilidad de escritura, pero introduce complejidad en las consultas que requieren JOINs entre shards.', a: 'V', j: 'El sharding mejora la escalabilidad de escritura, pero las consultas que abarcan múltiples shards requieren un "scatter-gather".', ref: 'Cap_1, Diap. 97' },
+                        { q: 'La ley de Amdahl implica que escalar horizontalmente un sistema siempre resultará en una mejora lineal del rendimiento.', a: 'F', j: 'La Ley de Amdahl establece que la mejora de rendimiento está limitada por la porción secuencial del sistema.', ref: 'N/A' },
+                        { q: 'Un API Gateway puede actuar como un "Backend for Frontend" (BFF), proporcionando una API específica para cada tipo de cliente (móvil, web).', a: 'V', j: 'El patrón BFF es una aplicación del API Gateway donde se crea un gateway específico para cada tipo de frontend.', ref: 'N/A' },
+                        { q: 'La transparencia de concurrencia se logra principalmente mediante la serialización de todas las operaciones, eliminando el paralelismo.', a: 'F', j: 'Se logra mediante mecanismos de control de concurrencia como bloqueos o transacciones, que gestionan el acceso paralelo.', ref: 'Cap_1, Diap. 17' },
+                        { q: 'En REST, el servidor mantiene el estado de la sesión del cliente para reducir la cantidad de datos transferidos en cada petición.', a: 'F', j: 'REST es "stateless". El cliente debe enviar todo el estado necesario en cada petición.', ref: 'Cap_1, Diap. 48' },
+                        { q: 'La decisión de usar una arquitectura de microservicios versus un monolito es puramente técnica y no tiene implicaciones en la estructura organizativa de los equipos de desarrollo.', a: 'F', j: 'La Ley de Conway sugiere que la arquitectura de un sistema tiende a reflejar la estructura de comunicación de la organización.', ref: 'N/A' },
+                        { q: 'Los sistemas distribuidos se diseñan bajo la premisa de que los fallos parciales son la norma, no la excepción.', a: 'V', j: 'Es un principio fundamental en el diseño de sistemas distribuidos robustos.', ref: 'Cap_1, Diap. 28' },
+                        { q: 'El problema de la "celebridad" en el sharding ocurre cuando un shard específico recibe una cantidad desproporcionada de tráfico.', a: 'V', j: 'Es un problema común cuando la clave de sharding no distribuye la carga uniformemente.', ref: 'Cap_1, Diap. 97' },
+                        { q: 'Una Content Delivery Network (CDN) puede reducir la carga en los servidores de origen al cachear tanto contenido estático como dinámico.', a: 'V', j: 'Las CDNs modernas pueden cachear respuestas de API y otro contenido dinámico.', ref: 'Cap_1, Diap. 93' },
+                        { q: 'La arquitectura orientada a recursos (ROA) es un estilo arquitectónico más general que REST.', a: 'F', j: 'REST es una instancia del estilo arquitectónico ROA (Resource-Oriented Architecture).', ref: 'N/A' },
+                        { q: 'La separación entre política y mecanismo mejora la flexibilidad y adaptabilidad de un sistema distribuido.', a: 'V', j: 'Permite cambiar las políticas (ej. de seguridad) sin modificar los mecanismos subyacentes.', ref: 'Cap_1, Diap. 39' },
+                        { q: 'Un sistema fuertemente consistente que escala horizontalmente enfrentará inevitablemente un aumento de latencia debido a la necesidad de coordinación.', a: 'V', j: 'Mantener una consistencia fuerte a través de nodos distribuidos geográficamente requiere protocolos de consenso que incurren en latencia.', ref: 'N/A' },
+                        { q: 'En P2P, un supernodo es un nodo centralizado que controla toda la red, violando el principio de descentralización.', a: 'F', j: 'Un supernodo es un nodo P2P con más capacidad y responsabilidades, pero no es un servidor central.', ref: 'Cap_1, Diap. 72' },
+                        { q: 'La transparencia de fallos total es imposible de lograr en un sistema distribuido real.', a: 'V', j: 'Siempre existe la posibilidad de fallos correlacionados o catastróficos que el sistema no puede enmascarar por completo.', ref: 'Cap_1, Diap. 17' },
+                        { q: 'La arquitectura "Space-Based" (SBA) se centra en la eliminación de un servidor de base de datos centralizado mediante el uso de tuplas de datos replicadas en memoria.', a: 'V', j: 'Se basa en unidades de procesamiento y colas de eventos, con datos replicados en memoria.', ref: 'N/A' },
+                        { q: 'La idempotencia de un método PUT en HTTP significa que si se envía el mismo request 100 veces, se crearán 100 recursos diferentes.', a: 'F', j: 'PUT es idempotente. Si se envía 100 veces, el estado final del recurso será el mismo que después de la primera llamada.', ref: 'N/A' },
+                        { q: 'La elección de una clave de sharding inadecuada puede llevar a un desbalanceo de datos y carga (hotspots).', a: 'V', j: 'Es crucial elegir una clave de sharding que distribuya los datos de manera uniforme.', ref: 'Cap_1, Diap. 97' },
+                        { q: 'Un sistema distribuido puede ser escalable pero no necesariamente tener alta disponibilidad.', a: 'V', j: 'La escalabilidad se refiere a manejar más carga. La alta disponibilidad se refiere a resistir fallos.', ref: 'N/A' },
+                        { q: 'En una arquitectura híbrida, como la de Napster, los nodos P2P se comunican directamente para la transferencia de archivos, pero dependen de servidores centrales para la búsqueda.', a: 'V', j: 'Es un ejemplo clásico de arquitectura híbrida.', ref: 'Cap_1, Diap. 72' },
+                        { q: 'El middleware interceptor permite añadir servicios como seguridad o logging de forma transparente a la aplicación.', a: 'V', j: 'Los interceptores pueden "envolver" las llamadas para añadir funcionalidades de forma transparente (AOP).', ref: 'N/A' },
+                        { q: 'La apertura de un sistema implica que sus interfaces están especificadas y publicadas completamente.', a: 'V', j: 'Es una de las claves de la apertura: interfaces públicas y bien documentadas.', ref: 'Cap_1, Diap. 14' },
+                        { q: 'El re-sharding, el proceso de cambiar el número de shards en una base de datos, es una operación trivial y sin impacto en el sistema.', a: 'F', j: 'El re-sharding es una operación muy compleja y delicada que implica mover grandes cantidades de datos.', ref: 'N/A' },
+                        { q: 'Los sistemas monolíticos son siempre una mala elección arquitectónica para proyectos nuevos.', a: 'F', j: 'Para proyectos pequeños o prototipos, un monolito puede ser una elección más simple y rápida.', ref: 'N/A' },
+                        { q: 'Una arquitectura serverless implica que no hay servidores involucrados en la ejecución del código.', a: 'F', j: 'Implica que el desarrollador no gestiona los servidores (son abstraídos por el proveedor de la nube), no que no existan.', ref: 'N/A' },
+                        { q: 'La transparencia de replicación puede entrar en conflicto con la transparencia de rendimiento si la sincronización de réplicas introduce latencia.', a: 'V', j: 'El esfuerzo por mantener las réplicas sincronizadas (consistencia) puede aumentar la latencia, afectando el rendimiento.', ref: 'N/A' },
+                        { q: 'El objetivo de un Service Mesh como Istio es gestionar la comunicación entre microservicios, manejando tareas como el balanceo de carga, la resiliencia y la observabilidad.', a: 'V', j: 'Un Service Mesh externaliza la lógica de comunicación de red fuera del código de la aplicación.', ref: 'N/A' },
+                        { q: 'Un sistema que es "separable" (decomposable) es inherentemente más fácil de escalar y mantener.', a: 'V', j: 'La capacidad de descomponer un problema en partes más pequeñas es clave para la mantenibilidad y escalabilidad.', ref: 'N/A' },
+                        { q: 'La sobrecarga de la red debido a mensajes de coordinación es un factor limitante en la escalabilidad de muchos algoritmos distribuidos.', a: 'V', j: 'A medida que un sistema crece, la sobrecarga de la comunicación puede convertirse en el principal cuello de botella.', ref: 'N/A' },
+                        { q: 'La arquitectura de pizarra (blackboard) es adecuada para problemas que no tienen una solución algorítmica determinista conocida.', a: 'V', j: 'Es un modelo donde múltiples agentes de conocimiento contribuyen a una solución compartida, útil para problemas complejos.', ref: 'N/A' },
+                        { q: 'La presencia de un reloj global preciso y sincronizado simplificaría enormemente muchos de los problemas en los sistemas distribuidos.', a: 'V', j: 'Problemas como la ordenación de eventos y el consenso serían mucho más sencillos con un tiempo global absoluto.', ref: 'N/A' },
+                        { q: 'El CAP theorem (Consistencia, Disponibilidad, Tolerancia a particiones) establece que un sistema distribuido solo puede garantizar dos de estas tres propiedades a la vez.', a: 'V', j: 'Es la afirmación central del Teorema CAP, formulado por Eric Brewer.', ref: 'N/A' }
+                    ],
+                    sm: [
+                        { q: 'En el contexto del Teorema CAP, si un sistema distribuido elige la consistencia (C) y la tolerancia a particiones (P), ¿qué propiedad debe sacrificar durante una partición de red?', o: ['Latencia.', 'Disponibilidad (A).', 'Durabilidad.', 'Escalabilidad.'], a: 'b', j: 'Durante una partición de red, el sistema debe elegir entre responder (disponibilidad) con datos potencialmente inconsistentes, o no responder (sacrificar disponibilidad) para garantizar la consistencia.', ref: 'Teorema CAP' },
+                        { q: '¿Cuál de los siguientes escenarios describe mejor un "hotspot" en una base de datos con sharding por rango?', o: ['Todos los shards tienen la misma cantidad de datos.', 'Las escrituras se distribuyen uniformemente entre todos los shards.', 'Un gran número de escrituras nuevas se concentra en un único shard (p. ej., por IDs autoincrementales).', 'Las lecturas son mucho más frecuentes que las escrituras.'], a: 'c', j: 'El sharding por rango puede crear hotspots cuando los datos se insertan secuencialmente, concentrando toda la carga de escritura en el último shard.', ref: 'Cap_1, Diap. 97' },
+                        { q: 'Un Service Mesh como Istio o Linkerd opera principalmente en la:', o: ['Capa de aplicación, junto al código de negocio.', 'Capa de infraestructura (red), interceptando el tráfico entre servicios.', 'Capa de datos, gestionando la replicación de bases de datos.', 'Capa de presentación, manejando la interfaz de usuario.'], a: 'b', j: 'Opera como una capa de infraestructura transparente, usualmente mediante un proxy sidecar que intercepta todo el tráfico de red de entrada y salida del servicio.', ref: 'N/A' },
+                        { q: 'La principal motivación detrás del patrón "Backend for Frontend" (BFF) es:', o: ['Reducir el número de servidores en el backend.', 'Crear un único API backend para todos los clientes.', 'Proveer una API optimizada y específica para cada tipo de cliente (e.g., web, móvil).', 'Eliminar la necesidad de un frontend.'], a: 'c', j: 'El patrón BFF adapta la API del backend a las necesidades específicas de cada tipo de cliente, evitando que los clientes reciban datos innecesarios o en un formato inadecuado.', ref: 'N/A' },
+                        { q: '¿Qué desafío de los sistemas distribuidos se aborda principalmente con el "Principio de Diseño de Extremo a Extremo"?', o: ['La tolerancia a fallos de la red.', 'La seguridad de los datos en tránsito.', 'La correcta implementación de la funcionalidad, evitando que las capas inferiores realicen suposiciones sobre los requisitos de la aplicación.', 'La escalabilidad del sistema.'], a: 'c', j: 'El principio sugiere que la lógica de confiabilidad (como la retransmisión) debe implementarse en los puntos finales, ya que solo ellos conocen el contexto completo de la aplicación.', ref: 'N/A' },
+                        { q: 'En una arquitectura P2P estructurada que utiliza una Tabla de Hash Distribuida (DHT), la responsabilidad de almacenar un dato (clave, valor) se asigna a un nodo basándose en:', o: ['La carga actual del nodo.', 'La ubicación geográfica del nodo.', 'El resultado de una función de hash aplicada a la clave.', 'Una elección aleatoria para distribuir la carga.'], a: 'c', j: 'La DHT proporciona un mapeo determinista entre una clave y el nodo responsable de almacenarla, lo que garantiza búsquedas eficientes.', ref: 'Cap_1, Diap. 63' },
+                        { q: 'Al diseñar un sistema que requiere una baja latencia de lectura a nivel global para contenido estático, la solución más efectiva sería:', o: ['Escalar verticalmente el servidor de base de datos principal.', 'Implementar un CDN (Content Delivery Network).', 'Aumentar el número de servidores web en el data center de origen.', 'Utilizar una arquitectura de microservicios.'], a: 'b', j: 'Un CDN distribuye el contenido geográficamente, almacenándolo en caché cerca de los usuarios finales para minimizar la latencia de red.', ref: 'Cap_1, Diap. 93' },
+                        { q: '¿Cuál es una consecuencia directa de la falta de un reloj global en los sistemas distribuidos?', o: ['Es imposible enviar mensajes entre nodos.', 'Es trivial determinar el orden causal de los eventos.', 'No se puede garantizar el orden absoluto de los eventos que ocurren en diferentes máquinas.', 'La latencia de la red se vuelve cero.'], a: 'c', j: 'La falta de un tiempo global compartido hace que la ordenación de eventos sea uno de los problemas fundamentales en los sistemas distribuidos.', ref: 'Cap_1, Diap. 7' },
+                        { q: '¿Qué describe mejor la diferencia entre una arquitectura basada en eventos y una arquitectura orientada a servicios (SOA)?', o: ['SOA utiliza comunicación asíncrona, mientras que la basada en eventos es síncrona.', 'La basada en eventos promueve un acoplamiento más débil y comunicación indirecta, mientras que SOA a menudo se centra en la invocación directa de servicios.', 'No hay ninguna diferencia conceptual.', 'SOA es un tipo de arquitectura monolítica.'], a: 'b', j: 'La arquitectura basada en eventos enfatiza el desacoplamiento a través de la comunicación asíncrona e indirecta, mientras que SOA puede incluir tanto invocaciones síncronas como asíncronas.', ref: 'Cap_1, Diaps. 46, 51' },
+                        { q: 'El "efecto dominó" (cascading failures), donde el fallo de un servicio provoca el fallo de otros servicios dependientes, es un riesgo significativo en:', o: ['Arquitecturas monolíticas.', 'Arquitecturas de microservicios con dependencias síncronas.', 'Sistemas P2P puros.', 'Sistemas con un único servidor.'], a: 'b', j: 'Las llamadas síncronas crean dependencias en tiempo de ejecución. Si un servicio dependiente falla o se vuelve lento, puede bloquear al servicio que lo llama, propagando el fallo.', ref: 'N/A' },
+                        { q: 'La "Ley de Conway" postula que:', o: ['La complejidad del software aumenta con el tiempo.', 'La arquitectura de un sistema reflejará la estructura de comunicación de la organización que lo construye.', 'El número de bugs en un sistema es proporcional al cuadrado de sus líneas de código.', 'Todo sistema escalable eventualmente se verá limitado por su componente menos escalable.'], a: 'b', j: 'Esta ley destaca la fuerte relación entre la estructura organizativa y la arquitectura del software resultante.', ref: 'N/A' },
+                        { q: '¿Qué técnica se utiliza para evitar que un cliente sobrecargue a un servicio con peticiones repetidas a un recurso que falla constantemente?', o: ['Reintentos (Retries).', 'Timeouts.', 'Circuit Breaker.', 'Balanceo de carga.'], a: 'c', j: 'El patrón Circuit Breaker detecta fallos repetidos y "abre el circuito", haciendo que las llamadas fallen rápidamente sin contactar al servicio fallido, dándole tiempo para recuperarse.', ref: 'N/A' },
+                        { q: 'Un sistema de archivos distribuido como HDFS de Hadoop está optimizado para:', o: ['Acceso de baja latencia a muchos archivos pequeños.', 'Procesamiento de streaming de grandes archivos con alto rendimiento (throughput).', 'Transacciones de base de datos ACID.', 'Almacenamiento de metadatos de archivos.'], a: 'b', j: 'HDFS está diseñado para leer grandes archivos de manera secuencial, optimizando el rendimiento general (throughput) sobre la latencia de acceso individual.', ref: 'N/A' },
+                        { q: 'En el contexto de la escalabilidad, ¿qué es la "consistencia eventual"?', o: ['Un modelo donde todas las réplicas se actualizan de forma síncrona.', 'Un modelo que garantiza que, si no se realizan nuevas actualizaciones, eventualmente todas las réplicas convergerán al mismo valor.', 'Un tipo de error donde el sistema nunca llega a ser consistente.', 'Un modelo que no es tolerante a particiones de red.'], a: 'b', j: 'Es un modelo de consistencia más débil que sacrifica la inmediatez de la consistencia para lograr una mayor disponibilidad y rendimiento.', ref: 'N/A' },
+                        { q: 'La principal razón para utilizar un middleware como un bus de servicios empresarial (ESB) en una arquitectura SOA es:', o: ['Lograr el máximo rendimiento posible.', 'Orquestar, transformar y enrutar la comunicación entre servicios heterogéneos.', 'Eliminar la necesidad de una red.', 'Forzar a todos los servicios a usar el mismo lenguaje de programación.'], a: 'b', j: 'Un ESB actúa como un intermediario inteligente que facilita la integración de servicios diversos, manejando la complejidad de la comunicación.', ref: 'N/A' }
+                    ]
+                },
+                unidad2: {
+                    vf: [
+                        { q: 'En RPC, la transparencia de la llamada remota puede ser perjudicial, ya que oculta la posibilidad de fallos parciales de la red.', a: 'V', j: 'Esta "falsa simplicidad" es una de las críticas a RPC, ya que los modos de fallo de una llamada en red son mucho más complejos que los de una llamada local.', ref: 'N/A' },
+                        { q: 'La serialización a un formato canónico intermedio resuelve la heterogeneidad de la representación de datos, pero puede introducir una sobrecarga de rendimiento.', a: 'V', j: 'La conversión de/hacia el formato canónico añade pasos de procesamiento que pueden impactar el rendimiento.', ref: 'N/A' },
+                        { q: 'Un sistema de comunicación que garantiza la entrega "exactly-once" es trivial de implementar sobre una red no confiable como UDP.', a: 'F', j: 'Es extremadamente difícil. UDP no garantiza nada. Implementar "exactly-once" sobre UDP requiere un protocolo de confiabilidad complejo.', ref: 'N/A' },
+                        { q: 'En un sistema Publish-Subscribe basado en contenido (content-based), los suscriptores reciben todos los mensajes publicados en un tópico y los filtran localmente.', a: 'F', j: 'En un sistema basado en contenido, el broker es responsable de filtrar y enviar a cada suscriptor solo los mensajes que coinciden con su suscripción.', ref: 'N/A' },
+                        { q: 'El multiplexado de streams de gRPC sobre una única conexión TCP mitiga el head-of-line blocking a nivel de aplicación, pero no a nivel de TCP.', a: 'V', j: 'HTTP/2 resuelve el HoL blocking entre requests, pero si un paquete TCP se pierde, el SO detendrá la entrega de todos los streams.', ref: 'N/A' },
+                        { q: 'La comunicación indirecta persistente requiere que el intermediario (e.g., message broker) tenga un almacenamiento estable.', a: 'V', j: 'Persistente significa que el mensaje sobrevive a reinicios del intermediario, lo que requiere almacenamiento no volátil.', ref: 'Cap_2, Diap. 47' },
+                        { q: 'El paso de parámetros por referencia en un RPC es imposible sin un sistema de memoria compartida distribuida.', a: 'V', j: 'El paso por referencia implica compartir un puntero a una dirección de memoria, lo cual no tiene sentido en espacios de memoria separados.', ref: 'Cap_2, Diap. 21' },
+                        { q: 'La semántica de "at-least-once" se puede lograr mediante la retransmisión de mensajes por parte del emisor hasta recibir un acuse de recibo (ACK).', a: 'V', j: 'Es la forma estándar de implementarlo: el emisor reintenta hasta que el receptor confirma la recepción.', ref: 'N/A' },
+                        { q: 'Un problema inherente a la comunicación síncrona en cascada (A llama a B, B llama a C) es la amplificación de la latencia y la reducción de la disponibilidad.', a: 'V', j: 'La disponibilidad total es el producto de las disponibilidades individuales y la latencia es la suma.', ref: 'N/A' },
+                        { q: 'Los sistemas de tuplas (Tuple Spaces) logran un desacoplamiento total (espacial, temporal y de referencia).', a: 'V', j: 'Ofrecen desacoplamiento de referencia (anonimato), espacial (no se conocen) y temporal (pueden no coexistir).', ref: 'N/A' },
+                        { q: 'Un Interface Definition Language (IDL) permite la evolución independiente del cliente y el servidor, siempre que la interfaz no cambie de forma incompatible.', a: 'V', j: 'El IDL es un contrato. Mientras el contrato se respete, las implementaciones pueden cambiar.', ref: 'Cap_2, Diap. 30' },
+                        { q: 'La comunicación asíncrona es inherentemente menos confiable que la comunicación síncrona.', a: 'F', j: 'La confiabilidad es una propiedad del protocolo construido sobre el mecanismo de comunicación, no del mecanismo en sí.', ref: 'N/A' },
+                        { q: 'El uso de un bus de mensajes centralizado puede convertirse en un cuello de botella y un punto único de fallo en un sistema distribuido.', a: 'V', j: 'Centralizar la comunicación introduce un componente crítico que debe ser altamente escalable y tolerante a fallos.', ref: 'N/A' },
+                        { q: 'En RMI, la recolección de basura distribuida es un problema complejo de resolver eficientemente.', a: 'V', j: 'Requiere un algoritmo complejo para rastrear referencias a través de la red.', ref: 'N/A' },
+                        { q: 'La unicast atómica es un problema trivial, ya que solo involucra a un emisor y un receptor.', a: 'F', j: 'La unicast (uno a uno) atómica es simplemente la entrega confiable de un mensaje.', ref: 'N/A' },
+                        { q: 'La serialización de grafos de objetos con referencias cíclicas puede llevar a bucles infinitos si el algoritmo no está preparado para manejarlos.', a: 'V', j: 'El serializador debe mantener un registro de los objetos ya visitados para no caer en un bucle infinito.', ref: 'N/A' },
+                        { q: 'La comunicación transitoria (transient) asíncrona implica que el mensaje puede descartarse si el receptor no está disponible en el momento del envío.', a: 'V', j: 'Transitorio significa que no hay almacenamiento intermedio. Si el receptor no está escuchando, el mensaje se pierde.', ref: 'Cap_2, Diap. 47' },
+                        { q: 'En gRPC, el streaming del lado del servidor permite que el servidor envíe múltiples respuestas a una única petición del cliente.', a: 'V', j: 'El cliente envía una petición y el servidor puede responder con un stream de múltiples mensajes.', ref: 'Cap_2, Diap. 31' },
+                        { q: 'La elección entre JSON y Protocol Buffers implica un trade-off entre legibilidad humana y eficiencia (tamaño/velocidad de parsing).', a: 'V', j: 'Es el trade-off clásico entre estos dos formatos.', ref: 'Cap_2, Diaps. 39-41' },
+                        { q: 'La comunicación grupal que preserva el orden causal es más fuerte que la que preserva el orden FIFO.', a: 'V', j: 'El orden causal (si A->B, entonces msg(A) se entrega antes que msg(B)) es una garantía más fuerte que el orden FIFO.', ref: 'N/A' },
+                        { q: 'Implementar "exactly-once" a nivel de aplicación a menudo requiere que las operaciones del receptor sean idempotentes o transaccionales.', a: 'V', j: 'Si la operación del receptor es idempotente, se puede reintentar sin efectos secundarios.', ref: 'N/A' },
+                        { q: 'El "binding" en RPC es el proceso de localizar al servidor que implementa la interfaz deseada.', a: 'V', j: 'Es el proceso que realiza un cliente para encontrar la dirección de red del servidor.', ref: 'Cap_2, Diap. 18' },
+                        { q: 'Un sistema basado en colas de mensajes puede absorber picos de carga (load leveling), mejorando la estabilidad del sistema.', a: 'V', j: 'La cola actúa como un buffer, permitiendo que el sistema consumidor procese los mensajes a su propio ritmo.', ref: 'N/A' },
+                        { q: 'El problema con las llamadas RPC no idempotentes (e.g., `cobrar(cuenta, monto)`) es que un reintento por un falso negativo de red puede llevar a una doble ejecución.', a: 'V', j: 'Un timeout no distingue entre "la petición no llegó" y "la respuesta se perdió". Un reintento podría causar un doble cobro.', ref: 'N/A' },
+                        { q: 'El desacoplamiento temporal proporcionado por la comunicación indirecta es inútil si la aplicación requiere una respuesta en tiempo real.', a: 'V', j: 'Si la respuesta se necesita de inmediato, se requiere comunicación síncrona.', ref: 'N/A' },
+                        { q: 'Los sockets UDP son orientados a la conexión y garantizan la entrega ordenada de paquetes.', a: 'F', j: 'UDP es sin conexión y no orientado a datagramas, no garantiza ni orden ni entrega. TCP es orientado a la conexión.', ref: 'N/A' },
+                        { q: 'En un sistema Pub/Sub, la filtración de mensajes en el broker es más eficiente en términos de red que la filtración en el cliente.', a: 'V', j: 'Reduce drásticamente el tráfico de red, ya que los clientes no reciben mensajes irrelevantes.', ref: 'N/A' },
+                        { q: 'La comunicación multicast a nivel de IP (IP multicast) es ampliamente utilizada en la Internet pública para la comunicación grupal a gran escala.', a: 'F', j: 'IP multicast tiene problemas de soporte y gestión en la Internet global, por lo que se utiliza más en redes locales.', ref: 'N/A' },
+                        { q: 'El marshalling de punteros o referencias de memoria es uno de los problemas más complejos en RPC entre procesos que no comparten memoria.', a: 'V', j: 'Es conceptualmente imposible, ya que los punteros son locales al espacio de memoria de un proceso.', ref: 'N/A' },
+                        { q: 'Un sistema de colas de "letra muerta" (Dead-Letter Queue) se utiliza para almacenar mensajes que no pudieron ser procesados exitosamente.', a: 'V', j: 'Es un patrón común para aislar y analizar mensajes fallidos sin detener el procesamiento de la cola principal.', ref: 'N/A' },
+                        { q: 'La comunicación isócrona garantiza la entrega de datos dentro de un intervalo de tiempo acotado, siendo crucial para aplicaciones multimedia.', a: 'V', j: 'Garantiza un límite superior en la latencia de extremo a extremo, esencial para el streaming.', ref: 'N/A' },
+                        { q: 'El rendimiento de un sistema RPC está limitado no solo por la latencia de la red, sino también por la sobrecarga de la serialización/deserialización.', a: 'V', j: 'La sobrecarga de CPU por la serialización/deserialización puede ser un cuello de botella significativo.', ref: 'N/A' },
+                        { q: 'Una ventaja de RMI sobre RPC es su integración natural con el modelo de objetos, permitiendo polimorfismo y herencia.', a: 'V', j: 'Permite que el código cliente y servidor interactúen usando los mismos conceptos de objetos.', ref: 'Cap_2, Diap. 26' },
+                        { q: 'La comunicación síncrona facilita el razonamiento sobre el flujo del programa, ya que se asemeja a un flujo secuencial local.', a: 'V', j: 'El flujo de ejecución es más fácil de seguir, a diferencia del modelo basado en callbacks de la comunicación asíncrona.', ref: 'Cap_2, Diap. 4' },
+                        { q: 'Un sistema de comunicación anónimo, como el que proveen las tuplas, oculta la identidad del emisor al receptor y viceversa.', a: 'V', j: 'Es una característica clave de los sistemas basados en Tuple Spaces.', ref: 'N/A' },
+                        { q: 'La comunicación confiable multicast es más compleja de implementar que la comunicación confiable unicast.', a: 'V', j: 'Requiere manejar escenarios complejos como la recuperación de mensajes perdidos por algunos miembros.', ref: 'N/A' },
+                        { q: 'El uso de HTTP para RPC (como en SOAP o REST) permite atravesar firewalls más fácilmente que los protocolos RPC binarios sobre puertos personalizados.', a: 'V', j: 'Los firewalls corporativos suelen permitir el tráfico en los puertos 80/443 (HTTP/S) pero bloquean otros puertos.', ref: 'N/A' },
+                        { q: 'La semántica de entrega de mensajes no es una propiedad del canal de comunicación en sí, sino del protocolo implementado sobre él.', a: 'V', j: 'Se puede construir un protocolo con semántica "at-least-once" sobre un canal no confiable como UDP.', ref: 'N/A' },
+                        { q: 'Un sistema con comunicación asíncrona y persistente puede tolerar la caída temporal tanto del consumidor como del productor (no simultáneamente) sin perder mensajes.', a: 'V', j: 'El productor puede dejar un mensaje en la cola persistente y apagarse. Más tarde, el consumidor puede iniciarse y procesar el mensaje.', ref: 'N/A' },
+                        { q: 'El "ordenamiento total" de mensajes en una comunicación grupal implica que todos los procesos reciben todos los mensajes en el mismo orden, aunque este orden no necesariamente corresponda al orden causal.', a: 'V', j: 'El ordenamiento total garantiza un orden global único, mientras que el causal solo respeta las relaciones de dependencia.', ref: 'N/A' }
+                    ],
+                    sm: [
+                        { q: '¿Qué problema introduce la transparencia de RPC al ocultar la comunicación de red?', o: ['Dificulta la depuración de fallos parciales.', 'Aumenta la latencia de las llamadas locales.', 'Requiere que cliente y servidor estén en el mismo lenguaje.', 'Impide la comunicación asíncrona.'], a: 'a', j: 'Al hacer que una llamada remota parezca local, los desarrolladores pueden olvidar considerar los modos de fallo adicionales introducidos por la red.', ref: 'N/A' },
+                        { q: 'En un escenario donde se necesita enviar notificaciones a un número grande y variable de componentes que pueden estar interesados en diferentes tipos de eventos, el paradigma más adecuado es:', o: ['RPC síncrono.', 'RMI.', 'Publish-Subscribe.', 'Comunicación directa por sockets.'], a: 'c', j: 'Pub/Sub desacopla a los emisores de los receptores, lo que es ideal para notificaciones a un conjunto dinámico de suscriptores.', ref: 'Cap_2, Diap. 53' },
+                        { q: 'Para implementar una semántica "at-most-once" en un RPC no idempotente sobre una red no confiable, una estrategia común en el servidor es:', o: ['Reintentar siempre la operación si no se recibe confirmación.', 'Ignorar los duplicados y procesar todas las peticiones que lleguen.', 'Mantener un historial de peticiones ya procesadas y rechazar duplicados.', 'Utilizar comunicación síncrona.'], a: 'c', j: 'Al asignar un ID único a cada petición, el servidor puede detectar y descartar retransmisiones de peticiones que ya ha procesado.', ref: 'N/A' },
+                        { q: 'El head-of-line blocking a nivel de HTTP/1.1 ocurre cuando:', o: ['Un paquete TCP se pierde y bloquea la entrega de los siguientes.', 'Una petición lenta al inicio de una conexión TCP bloquea las peticiones posteriores en la misma conexión.', 'El servidor está sobrecargado y no puede procesar nuevas peticiones.', 'El cliente envía peticiones más rápido de lo que el servidor puede procesarlas.'], a: 'b', j: 'HTTP/1.1 procesa las peticiones en una conexión de forma estrictamente secuencial. HTTP/2 resuelve esto con multiplexación.', ref: 'N/A' },
+                        { q: '¿Cuál de las siguientes afirmaciones sobre la comunicación indirecta es más precisa?', o: ['Siempre introduce más latencia que la comunicación directa.', 'Aumenta el acoplamiento entre los componentes del sistema.', 'Permite la evolución independiente de productores y consumidores.', 'Requiere que todos los participantes estén activos simultáneamente.'], a: 'c', j: 'Al introducir un intermediario, los productores y consumidores solo necesitan conocer la interfaz del intermediario, no la de los demás.', ref: 'Cap_2, Diap. 45' },
+                        { q: 'En un sistema donde la durabilidad de los mensajes es crítica incluso si el broker de mensajes se reinicia, ¿qué tipo de comunicación se necesita?', o: ['Transitoria asíncrona.', 'Persistente asíncrona.', 'Síncrona.', 'Transitoria síncrona.'], a: 'b', j: 'La comunicación persistente implica que el intermediario almacena los mensajes en un medio no volátil (como un disco).', ref: 'Cap_2, Diap. 47' },
+                        { q: 'El propósito de un IDL (Interface Definition Language) en sistemas como gRPC o CORBA es:', o: ['Definir la implementación del servicio en un lenguaje específico.', 'Generar documentación de la API en formato HTML.', 'Proporcionar una descripción abstracta y neutral del lenguaje de la interfaz del servicio.', 'Optimizar la comunicación de red a bajo nivel.'], a: 'c', j: 'El IDL actúa como un contrato entre el cliente y el servidor, permitiendo generar stubs y skeletons en diferentes lenguajes.', ref: 'Cap_2, Diap. 30' },
+                        { q: 'Un sistema de video en tiempo real requiere una comunicación que garantice un throughput de datos mínimo y una latencia máxima acotada. Este tipo de comunicación se denomina:', o: ['Asíncrona.', 'Síncrona.', 'Isócrona.', 'Persistente.'], a: 'c', j: 'La comunicación isócrona se define por sus garantías de tiempo real, cruciales para aplicaciones multimedia.', ref: 'N/A' },
+                        { q: 'El principal desafío de la recolección de basura distribuida en sistemas como RMI es:', o: ['Determinar cuándo un objeto remoto ya no es referenciado por ningún cliente en la red.', 'Liberar la memoria en el cliente después de una llamada remota.', 'Serializar los objetos recolectores de basura.', 'La falta de memoria en el servidor.'], a: 'a', j: 'Rastrear referencias a través de una red es un problema complejo que requiere algoritmos de coordinación distribuida.', ref: 'N/A' },
+                        { q: '¿Cuál es el trade-off fundamental al elegir un formato de serialización como Protocol Buffers sobre JSON?', o: ['Flexibilidad vs. Rigidez del esquema.', 'Seguridad vs. Rendimiento.', 'Legibilidad y simplicidad vs. Eficiencia en tamaño y velocidad.', 'Soporte de lenguajes vs. Estándares abiertos.'], a: 'c', j: 'JSON es legible y fácil de usar, mientras que Protocol Buffers está optimizado para ser compacto y rápido de procesar, a costa de la legibilidad.', ref: 'Cap_2, Diaps. 39-41' },
+                        { q: 'El ordenamiento causal de mensajes garantiza que:', o: ['Todos los mensajes se entregan en el mismo orden a todos los receptores.', 'Si el envío del mensaje A causa el envío del mensaje B, A se entrega antes que B en todos los receptores comunes.', 'Los mensajes se entregan en el orden FIFO estricto en que fueron enviados por cualquier emisor.', 'Los mensajes nunca se pierden.'], a: 'b', j: 'Preserva la relación "sucedió antes que", que es fundamental para el razonamiento sobre la causalidad en sistemas distribuidos.', ref: 'N/A' },
+                        { q: 'Un cliente realiza una llamada RPC para transferir dinero. La red falla y el cliente no recibe respuesta (timeout). Para garantizar la consistencia, la operación en el servidor debería ser:', o: ['No idempotente.', 'Idempotente.', 'Asíncrona.', 'Ejecutada siempre en paralelo.'], a: 'b', j: 'La idempotencia asegura que si el cliente reintenta la operación debido al timeout, esta no se ejecutará dos veces, evitando un doble cobro.', ref: 'N/A' },
+                        { q: '¿Qué patrón de comunicación es más adecuado para desacoplar temporalmente un sistema que procesa imágenes subidas por usuarios de forma intensiva, evitando sobrecargar el servidor de procesamiento?', o: ['RPC.', 'Cola de Mensajes.', 'RMI.', 'Streaming bidireccional.'], a: 'b', j: 'Una cola de mensajes actúa como un búfer, permitiendo que el servicio de procesamiento consuma las tareas a su propio ritmo.', ref: 'Cap_2, Diap. 57' },
+                        { q: 'En la comunicación por paso de mensajes, el "direccionamiento" se refiere a:', o: ['Cómo se serializan los mensajes.', 'Cómo se especifica el destinatario de un mensaje.', 'Cómo se manejan los errores de red.', 'Cómo se sincronizan el emisor y el receptor.'], a: 'b', j: 'El direccionamiento puede ser directo (a un proceso específico) o indirecto (a un buzón o grupo).', ref: 'N/A' },
+                        { q: 'La diferencia fundamental entre un sistema de colas y un sistema publish-subscribe de log (como Apache Kafka) es que:', o: ['Las colas son para comunicación síncrona, y los logs para asíncrona.', 'En una cola, un mensaje es consumido por un solo receptor; en un log, múltiples consumidores pueden leer el mismo mensaje.', 'Las colas no son persistentes, mientras que los logs sí.', 'Pub/Sub no necesita un broker, pero las colas sí.'], a: 'b', j: 'Las colas tradicionales (ej. RabbitMQ) entregan un mensaje a un solo consumidor (semántica de punto a punto). Los logs (ej. Kafka) permiten que múltiples grupos de consumidores lean el mismo flujo de mensajes de forma independiente.', ref: 'N/A' }
+                    ]
+                },
+                unidad3: {
+                    vf: [
+                        { q: 'La fiabilidad (reliability) es una medida de tiempo (MTBF), mientras que la disponibilidad es una probabilidad en un instante de tiempo.', a: 'V', j: 'Fiabilidad (MTBF) mide la duración entre fallos. Disponibilidad (MTBF / (MTBF+MTTR)) mide el porcentaje de tiempo funcional.', ref: 'Cap_3, Diap. 4' },
+                        { q: 'Un sistema puede tener alta fiabilidad (falla muy raramente) pero baja disponibilidad si el tiempo de reparación (MTTR) es muy largo.', a: 'V', j: 'Un sistema que nunca falla pero tarda semanas en repararse tendrá una baja disponibilidad.', ref: 'N/A' },
+                        { q: 'El protocolo de commit de tres fases (3PC) elimina el problema de bloqueo del 2PC, pero es vulnerable a particiones de red.', a: 'V', j: '3PC resuelve el bloqueo del coordinador, pero una partición de red puede dejar al sistema en un estado incierto.', ref: 'N/A' },
+                        { q: 'En la replicación activa, la necesidad de que las operaciones sean determinísticas es un requisito fundamental para mantener la consistencia entre réplicas.', a: 'V', j: 'Si una operación no es determinista, cada réplica obtendrá un resultado diferente, llevando a una inconsistencia de estado.', ref: 'Cap_3, Diap. 21' },
+                        { q: 'La recuperación hacia adelante (forward recovery) es posible solo si se pueden anticipar y comprender completamente todos los posibles errores.', a: 'V', j: 'Requiere conocer la naturaleza exacta del fallo para calcular un nuevo estado correcto, lo cual es solo factible en contextos muy limitados.', ref: 'N/A' },
+                        { q: 'Un fallo de temporización se considera un fallo bizantino si el componente envía una respuesta correcta pero fuera del intervalo de tiempo, causando un comportamiento incorrecto en el sistema global.', a: 'F', j: 'Un fallo de temporización es un fallo en la dimensión del tiempo. Un fallo bizantino es un fallo en la dimensión del valor (contenido).', ref: 'Cap_3, Diaps. 8-9' },
+                        { q: 'El Quorum en los protocolos de replicación permite realizar operaciones de lectura y escritura sin bloquear todas las réplicas, a costa de una posible consistencia más débil.', a: 'V', j: 'Es el principio de los sistemas de quorum. Se garantiza que los conjuntos de lectura y escritura se solapen.', ref: 'N/A' },
+                        { q: 'El multicast atómico es un problema equivalente al consenso en sistemas asíncronos con fallos por detención.', a: 'V', j: 'Se ha demostrado que resolver el consenso es fundamental para implementar otros problemas de coordinación como el multicast atómico.', ref: 'N/A' },
+                        { q: 'En la replicación pasiva, el primario puede confirmar una operación al cliente antes de que todas las réplicas de respaldo hayan confirmado la actualización, para reducir la latencia.', a: 'V', j: 'Esto se conoce como replicación semi-síncrona. Reduce la latencia, pero introduce riesgo de pérdida de datos.', ref: 'N/A' },
+                        { q: 'Un fallo de performance, donde el sistema funciona correctamente pero no cumple con sus especificaciones de rendimiento, no se considera un fallo real del sistema.', a: 'F', j: 'Desde la perspectiva de los Acuerdos de Nivel de Servicio (SLA), un fallo de performance es un fallo tan real como un crash.', ref: 'N/A' },
+                        { q: 'La redundancia de información, como los códigos de borrado (erasure codes), puede ser más eficiente en términos de espacio que la replicación simple para un nivel similar de durabilidad.', a: 'V', j: 'La replicación N veces requiere N*tamaño de espacio. Los erasure codes suelen requerir menos espacio.', ref: 'N/A' },
+                        { q: 'La tolerancia a fallos bizantinos mediante replicación requiere `2f + 1` réplicas para tolerar `f` fallos si los mensajes no pueden ser falsificados.', a: 'F', j: 'Requiere `3f + 1` réplicas. El `2f + 1` es para tolerar fallos por detención en algunos escenarios.', ref: 'N/A' },
+                        { q: 'El problema del consenso distribuido es soluble en un sistema asíncrono si al menos un proceso puede fallar por detención (resultado FLP).', a: 'F', j: 'El resultado FLP (Fischer, Lynch, Paterson) demuestra que el consenso no se puede garantizar en un sistema asíncrono si existe la posibilidad de que un solo proceso falle.', ref: 'N/A' },
+                        { q: 'La elección de un líder en un grupo de procesos es una forma de romper la simetría y simplificar los protocolos de coordinación.', a: 'V', j: 'Algoritmos como el 2PC o la replicación pasiva se simplifican al designar un proceso con responsabilidades especiales.', ref: 'N/A' },
+                        { q: 'El "checkpointing" coordinado requiere que los procesos se detengan y sincronicen para guardar un estado global consistente, lo que puede afectar el rendimiento.', a: 'V', j: 'La necesidad de pausar y coordinar todos los procesos es su principal desventaja en términos de rendimiento.', ref: 'N/A' },
+                        { q: 'La replicación activa maneja los fallos del cliente de forma más natural que la replicación pasiva.', a: 'F', j: 'Es al revés. En la pasiva, si un cliente reintenta una petición a un nuevo primario, es difícil saber si la original se ejecutó.', ref: 'N/A' },
+                        { q: 'El tiempo de recuperación (failover) en un sistema de replicación pasiva es siempre cero.', a: 'F', j: 'Siempre hay un tiempo, aunque sea corto, para detectar el fallo del primario y promover un backup.', ref: 'Cap_3, Diap. 23' },
+                        { q: 'Una "Availability Zone" protege contra el fallo de una región completa de un proveedor de nube.', a: 'F', j: 'Protege contra el fallo de un datacenter. El fallo de una región entera es un evento mucho más catastrófico.', ref: 'Cap_3, Diap. 62' },
+                        { q: 'La propiedad de "uniformidad" en un multicast fiable significa que si un proceso correcto entrega un mensaje, entonces todos los procesos correctos del grupo entregarán ese mensaje.', a: 'V', j: 'Es la definición de la propiedad de acuerdo uniforme (uniform agreement) en multicast fiable.', ref: 'N/A' },
+                        { q: 'El protocolo 2PC asume que el almacenamiento de los participantes es estable (no se pierde en un reinicio).', a: 'V', j: 'Tanto el coordinador como los participantes deben escribir en un log estable sus decisiones para poder recuperarse de reinicios.', ref: 'N/A' },
+                        { q: 'La seguridad (safety) es una propiedad que estipula que "nada malo sucede", mientras que la vitalidad (liveness) estipula que "algo bueno eventualmente sucede".', a: 'V', j: 'Son las dos clases de propiedades de corrección en sistemas concurrentes y distribuidos.', ref: 'N/A' },
+                        { q: 'El logging de mensajes entre procesos puede usarse para reconstruir el estado de un proceso fallido si se combina con checkpoints.', a: 'V', j: 'Esta técnica se conoce como "message logging". Permite a un proceso recuperado "reproducir" los mensajes que recibió.', ref: 'N/A' },
+                        { q: 'Un sistema con un MTBF (Mean Time Between Failures) de 1000 horas y un MTTR (Mean Time To Repair) de 10 horas tiene una disponibilidad del 99%.', a: 'V', j: 'Disponibilidad = MTBF / (MTBF + MTTR) = 1000 / (1000 + 10) ≈ 0.99 (99%).', ref: 'N/A' },
+                        { q: 'La detección de fallos en un sistema asíncrono es imposible de diferenciar de una latencia de red extremadamente alta.', a: 'V', j: 'No se puede saber con certeza si un proceso ha fallado o si simplemente hay un retraso extremo en la red.', ref: 'N/A' },
+                        { q: 'La replicación estado-máquina (state machine replication) es el principio fundamental detrás de la replicación activa y protocolos como Paxos.', a: 'V', j: 'Si múltiples réplicas procesan la misma secuencia de operaciones en el mismo orden, terminarán en el mismo estado.', ref: 'N/A' },
+                        { q: 'En la replicación pasiva, si el primario falla antes de propagar una escritura a los backups, esa escritura se pierde.', a: 'V', j: 'Este es el principal riesgo de la replicación pasiva asíncrona: la pérdida de datos.', ref: 'N/A' },
+                        { q: 'El objetivo de un protocolo de exclusión mutua distribuida es garantizar que solo un proceso a la vez pueda acceder a un recurso crítico.', a: 'V', j: 'Es la definición del problema de exclusión mutua.', ref: 'N/A' },
+                        { q: 'Los fallos de software debidos a "heisenbugs" son fallos intermitentes que parecen desaparecer cuando se intenta depurarlos.', a: 'V', j: 'Son bugs difíciles de reproducir porque están ligados a condiciones de carrera o estados del sistema muy específicos.', ref: 'N/A' },
+                        { q: 'La ventaja de la replicación pasiva es que las operaciones no determinísticas no son un problema, ya que solo el primario las ejecuta.', a: 'V', j: 'Como solo el primario ejecuta las operaciones, no hay riesgo de que las réplicas diverjan.', ref: 'Cap_3, Diap. 23' },
+                        { q: 'El protocolo Paxos es un protocolo de consenso diseñado para funcionar en sistemas asíncronos y tolerar fallos no bizantinos.', a: 'V', j: 'Es uno de los algoritmos de consenso más conocidos y fundamentales.', ref: 'N/A' },
+                        { q: 'El "split-brain" en un sistema de alta disponibilidad ocurre cuando una partición de red hace que ambos nodos (primario y de respaldo) crean que son el primario activo.', a: 'V', j: 'Es un estado peligroso donde ambos nodos aceptan escrituras de forma independiente, llevando a una inconsistencia de datos.', ref: 'N/A' },
+                        { q: 'Un sistema puede ser tolerante a fallos pero no ser de alta disponibilidad si la recuperación de un fallo toma mucho tiempo.', a: 'V', j: 'Un sistema que se recupera automáticamente pero tarda una hora en hacerlo no es de alta disponibilidad.', ref: 'N/A' },
+                        { q: 'La atomicidad de una transacción distribuida es una propiedad de seguridad (safety).', a: 'V', j: 'Es una propiedad de "safety": la transacción no debe terminar en un estado inconsistente.', ref: 'N/A' },
+                        { q: 'La replicación de componentes sin estado (stateless) es significativamente más simple que la replicación de componentes con estado.', a: 'V', j: 'Replicar un componente sin estado es tan simple como iniciar otra copia. Replicar uno con estado requiere mantener el estado sincronizado.', ref: 'N/A' },
+                        { q: 'Un "detector de fallos perfecto" es imposible de construir en un sistema asíncrono.', a: 'V', j: 'Debido a la imposibilidad de distinguir entre un fallo y una latencia infinita.', ref: 'N/A' },
+                        { q: 'La recuperación hacia atrás (backward recovery) no es adecuada para sistemas que tienen efectos externos irreversibles (ej. dispensar dinero de un cajero automático).', a: 'V', j: 'La recuperación hacia atrás "deshace" el trabajo, lo cual no es posible si ese trabajo tuvo un efecto en el mundo real.', ref: 'N/A' },
+                        { q: 'En 2PC, un participante que votó "SÍ" está en un estado de incertidumbre hasta que recibe la decisión final del coordinador.', a: 'V', j: 'El participante ha prometido hacer commit y ha bloqueado los recursos, pero no puede proceder hasta que el coordinador le dé la orden final.', ref: 'Cap_3, Diap. 46' },
+                        { q: 'La organización de réplicas como un grupo con un líder simplifica la ordenación de las actualizaciones.', a: 'V', j: 'El líder puede secuenciar todas las actualizaciones y asegurarse de que se aplican en el mismo orden en todas las réplicas.', ref: 'N/A' },
+                        { q: 'El costo de la tolerancia a fallos bizantinos es significativamente mayor que el de la tolerancia a fallos por detención.', a: 'V', j: 'Requiere más réplicas (`3f+1` vs `2f+1`) y protocolos de comunicación más complejos.', ref: 'N/A' },
+                        { q: 'La resiliencia de un sistema no solo implica recuperarse de fallos, sino también adaptarse a condiciones cambiantes.', a: 'V', j: 'La resiliencia moderna incluye la capacidad de degradar el servicio y adaptarse a condiciones anómalas.', ref: 'Cap_3, Diap. 55' }
+                    ],
+                    sm: [
+                        { q: 'El resultado de imposibilidad de Fischer, Lynch y Paterson (FLP) establece que en un sistema asíncrono, el consenso:', o: ['Es siempre posible si menos de la mitad de los procesos fallan.', 'No puede ser garantizado si al menos un proceso puede fallar por detención.', 'Es posible solo con un detector de fallos perfecto.', 'Requiere el uso de relojes sincronizados.'], a: 'b', j: 'El resultado FLP es un teorema fundamental que establece los límites del consenso en sistemas asíncronos.', ref: 'N/A' },
+                        { q: 'En un sistema que utiliza un protocolo de Quorum con `Nr` (quorum de lectura) y `Nw` (quorum de escritura) para `N` réplicas, ¿qué condición debe cumplirse para garantizar una consistencia fuerte?', o: ['`Nr + Nw > N`', '`Nw > N/2`', '`Nr + Nw = N`', '`Nw = N`'], a: 'a', j: 'La condición `Nr + Nw > N` garantiza que el conjunto de nodos de lectura siempre se solapa con el conjunto de nodos de escritura en al menos un nodo.', ref: 'N/A' },
+                        { q: '¿Cuál es la principal ventaja del protocolo de commit de tres fases (3PC) sobre el de dos fases (2PC)?', o: ['Es más rápido.', 'No es bloqueante si el coordinador falla (excepto durante una partición de red).', 'Requiere menos mensajes.', 'Tolera fallos bizantinos.'], a: 'b', j: 'El estado intermedio "pre-commit" permite a los participantes tomar una decisión por defecto si el coordinador falla, evitando el bloqueo.', ref: 'N/A' },
+                        { q: 'Para tolerar `f` fallos bizantinos en un sistema, el número mínimo de réplicas requeridas (`n`) para llegar a un acuerdo es:', o: ['`n = f + 1`', '`n = 2f + 1`', '`n = 3f + 1`', '`n = f^2`'], a: 'c', j: 'Se requiere una mayoría de dos tercios de réplicas no fallidas para superar a las réplicas bizantinas.', ref: 'N/A' },
+                        { q: 'El "split-brain" en un clúster de alta disponibilidad se puede prevenir utilizando:', o: ['Un canal de heartbeat de mayor ancho de banda.', 'Múltiples canales de heartbeat por diferentes redes.', 'Un tercer dispositivo o nodo (quorum/witness) para desempatar.', 'Replicación síncrona.'], a: 'c', j: 'Un testigo de quórum ayuda a la partición minoritaria a darse de baja, evitando que dos nodos se crean el primario.', ref: 'N/A' },
+                        { q: 'La replicación estado-máquina (State Machine Replication) requiere dos propiedades fundamentales:', o: ['Sincronicidad y detectores de fallos perfectos.', 'Replicación y determinismo de las operaciones.', 'Alto rendimiento y baja latencia.', 'Escalabilidad horizontal y vertical.'], a: 'b', j: 'Todas las réplicas deben ejecutar las mismas operaciones determinísticas en el mismo orden para mantener la consistencia.', ref: 'N/A' },
+                        { q: 'Un "detector de fallos eventualmente perfecto" (`◇P`) garantiza que:', o: ['Todo proceso que falla es permanentemente sospechoso por todos los procesos correctos.', 'Eventualmente, todo proceso que falla es sospechoso por todos los procesos correctos, y eventualmente, ningún proceso correcto es sospechoso.', 'Nunca sospecha erróneamente de un proceso correcto.', 'Detecta los fallos de forma instantánea.'], a: 'b', j: 'Combina la completitud (todo fallo es detectado) con la precisión eventual (las sospechas incorrectas cesan).', ref: 'N/A' },
+                        { q: 'Un sistema que tiene un Mean Time Between Failures (MTBF) de 3650 horas y un Mean Time To Repair (MTTR) de 1 hora tiene una disponibilidad aproximada de:', o: ['99.9%', '99.97%', '99%', '90%'], a: 'b', j: 'A = MTBF / (MTBF + MTTR) = 3650 / (3650 + 1) ≈ 0.999726, que es 99.97%.', ref: 'N/A' },
+                        { q: '¿Cuál de las siguientes afirmaciones describe mejor el problema de los "dos generales"?', o: ['Es imposible lograr consenso en presencia de fallos bizantinos.', 'Es imposible alcanzar un acuerdo sobre un canal de comunicación no confiable donde los mensajes pueden perderse.', 'Es imposible elegir un líder en un anillo de procesos asíncrono.', 'Es imposible realizar un commit atómico con solo dos participantes.'], a: 'b', j: 'Demuestra que no se puede alcanzar conocimiento común en una red no confiable, ya que el último mensaje de confirmación nunca puede ser confirmado.', ref: 'N/A' },
+                        { q: 'La técnica de "checkpointing no coordinado" tiene la ventaja de una baja sobrecarga en tiempo de ejecución, pero sufre del riesgo de:', o: ['Bloquear todo el sistema.', 'El efecto dominó durante la recuperación, forzando a retroceder a estados muy antiguos.', 'Perder checkpoints si la red falla.', 'Ser inconsistente con el estado actual del sistema.'], a: 'b', j: 'La falta de coordinación puede llevar a que no exista una línea de recuperación global consistente, forzando una cascada de restauraciones.', ref: 'N/A' },
+                        { q: 'La diferencia clave entre tolerancia a fallos y alta disponibilidad es:', o: ['La tolerancia a fallos se enfoca en mantener el sistema operativo a pesar de los fallos, mientras que la alta disponibilidad busca minimizar o eliminar la interrupción.', 'No hay diferencia, son términos intercambiables.', 'La alta disponibilidad se refiere solo al hardware, mientras que la tolerancia a fallos se refiere al software.', 'La tolerancia a fallos es proactiva, mientras que la alta disponibilidad es reactiva.'], a: 'a', j: 'La alta disponibilidad es una medida del tiempo de actividad, mientras que la tolerancia a fallos es el mecanismo para lograrlo.', ref: 'N/A' },
+                        { q: 'En la replicación pasiva, cuando un cliente envía una petición de lectura, esta puede ser atendida por una réplica de respaldo (esclava) para mejorar el rendimiento. Esto puede llevar a problemas de:', o: ['Consistencia, ya que la réplica podría no tener la última escritura.', 'Seguridad, ya que la réplica puede no ser confiable.', 'Disponibilidad, ya que la réplica puede estar caída.', 'No hay ningún problema, es una práctica estándar y segura.'], a: 'a', j: 'Si la replicación es asíncrona, la réplica de respaldo puede tener datos desactualizados (stale data).', ref: 'N/A' },
+                        { q: 'El algoritmo de consenso Raft simplifica a Paxos principalmente al:', o: ['Tolerar fallos bizantinos.', 'Funcionar en sistemas asíncronos puros.', 'Descomponer el problema en elección de líder, replicación de log y seguridad.', 'Eliminar la necesidad de persistencia en disco.'], a: 'c', j: 'Raft fue diseñado explícitamente para ser más comprensible que Paxos, separando claramente sus componentes lógicos.', ref: 'N/A' },
+                        { q: 'La "recuperación hacia atrás" (backward recovery) se basa en la suposición de que:', o: ['El estado del sistema se puede restaurar a un punto anterior correcto (checkpoint).', 'Los errores son predecibles y se pueden corregir.', 'El sistema nunca falla de forma catastrófica.', 'Es posible reintentar la operación fallida.'], a: 'a', j: 'Se basa en la existencia de un estado guardado previamente consistente al que se puede volver.', ref: 'Cap_3, Diap. 48' },
+                        { q: 'Un sistema que usa códigos de borrado (erasure coding) con una configuración `k=8, m=4` significa que:', o: ['Un archivo se divide en 8 fragmentos y se crean 4 fragmentos de paridad, pudiendo tolerar el fallo de hasta 4 fragmentos cualesquiera.', 'Un archivo se replica 8 veces y se distribuye en 4 servidores.', 'Se necesitan 8 réplicas para tolerar 4 fallos.', 'El archivo se divide en 12 fragmentos y se necesitan 8 para reconstruirlo.'], a: 'a', j: 'k son los fragmentos de datos, m los de paridad. El sistema puede reconstruir los datos originales tolerando la pérdida de hasta m fragmentos.', ref: 'N/A' }
+                    ]
+                }
+            }
+        };
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const unitSelector = document.getElementById('unit-selector');
+            const generateBtn = document.getElementById('generate-btn');
+            const showSolutionsBtn = document.getElementById('show-solutions-btn');
+            const checkAnswersBtn = document.getElementById('check-answers-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const configSection = document.getElementById('config-section');
+            const quizContainer = document.getElementById('quiz-container');
+            const solutionsContainer = document.getElementById('solutions-container');
+            const quizDisplay = document.getElementById('quiz-display');
+            const quizResults = document.getElementById('quiz-results');
+            const feedbackP = document.getElementById('question-count-feedback');
+
+            let selectedUnits = [];
+            let currentQuiz = { vf: [], sm: [] };
+
+            const updateAvailableQuestions = () => {
+                const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
+                if (selectedUnits.length === 0) {
+                    feedbackP.textContent = 'Selecciona al menos una unidad para ver las preguntas disponibles.';
+                    generateBtn.disabled = true;
+                    return;
+                }
+
+                let availableVf = 0;
+                let availableSm = 0;
+                selectedUnits.forEach(unit => {
+                    availableVf += quizData[difficulty][unit].vf.length;
+                    availableSm += quizData[difficulty][unit].sm.length;
+                });
+
+                feedbackP.textContent = `Preguntas disponibles: ${availableVf} V/F, ${availableSm} Selección Múltiple.`;
+                document.getElementById('vf-count').max = availableVf;
+                document.getElementById('sm-count').max = availableSm;
+                generateBtn.disabled = false;
+            };
+            
+            unitSelector.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    const unit = e.target.dataset.unit;
+                    e.target.classList.toggle('selected');
+                    if (selectedUnits.includes(unit)) {
+                        selectedUnits = selectedUnits.filter(u => u !== unit);
+                    } else {
+                        selectedUnits.push(unit);
+                    }
+                    updateAvailableQuestions();
+                }
+            });
+            
+            document.querySelectorAll('input[name="difficulty"]').forEach(radio => {
+                radio.addEventListener('change', updateAvailableQuestions);
+            });
+            
+            const shuffleArray = (array) => {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            };
+
+            const generateQuiz = () => {
+                const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
+                const vfCount = parseInt(document.getElementById('vf-count').value, 10);
+                const smCount = parseInt(document.getElementById('sm-count').value, 10);
+                
+                if (selectedUnits.length === 0) {
+                    alert('Por favor, selecciona al menos una unidad.');
+                    return;
+                }
+
+                let poolVf = [];
+                let poolSm = [];
+
+                selectedUnits.forEach(unit => {
+                    poolVf.push(...quizData[difficulty][unit].vf);
+                    poolSm.push(...quizData[difficulty][unit].sm);
+                });
+                
+                if (vfCount > poolVf.length || smCount > poolSm.length) {
+                    alert(`No hay suficientes preguntas para tu selección. Máximo ${poolVf.length} V/F y ${poolSm.length} SM.`);
+                    return;
+                }
+
+                currentQuiz.vf = shuffleArray(poolVf).slice(0, vfCount);
+                currentQuiz.sm = shuffleArray(poolSm).slice(0, smCount);
+
+                renderQuiz();
+                renderSolutions();
+                
+                configSection.classList.add('hidden');
+                quizContainer.classList.remove('hidden');
+                solutionsContainer.classList.add('hidden');
+                quizResults.classList.add('hidden');
+                checkAnswersBtn.classList.remove('hidden');
+                checkAnswersBtn.disabled = false;
+                showSolutionsBtn.classList.add('hidden');
+                showSolutionsBtn.textContent = 'Mostrar Solucionario';
+            };
+
+            const renderQuiz = () => {
+                let html = '';
+                let questionCounter = 1;
+
+                if (currentQuiz.vf.length > 0) {
+                    html += '<h2 class="text-2xl font-bold mb-4">Verdadero y Falso</h2>';
+                    html += '<ol class="space-y-4">';
+                    currentQuiz.vf.forEach((q, index) => {
+                        html += `<li id="vf-item-${index}" class="quiz-item">
+                            <p class="font-medium">${questionCounter}. ${q.q}</p>
+                            <div class="mt-2 flex gap-4 pl-6">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" name="vf-${index}" value="V" class="form-radio text-blue-500">
+                                    <span>Verdadero</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" name="vf-${index}" value="F" class="form-radio text-blue-500">
+                                    <span>Falso</span>
+                                </label>
+                            </div>
+                        </li>`;
+                        questionCounter++;
+                    });
+                    html += '</ol>';
+                }
+
+                if (currentQuiz.sm.length > 0) {
+                    html += `<h2 class="text-2xl font-bold mb-4 ${currentQuiz.vf.length > 0 ? 'mt-8' : ''}">Selección Múltiple</h2>`;
+                    html += '<ol class="space-y-4" start="' + questionCounter + '">';
+                    currentQuiz.sm.forEach((q, index) => {
+                        html += `<li id="sm-item-${index}" class="quiz-item">
+                            <p class="font-medium">${questionCounter}. ${q.q}</p>
+                            <div class="mt-2 space-y-2 pl-6">`;
+                        q.o.forEach((option, optIndex) => {
+                            const letter = String.fromCharCode(97 + optIndex);
+                            html += `<label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="radio" name="sm-${index}" value="${letter}" class="form-radio text-blue-500">
+                                        <span>${letter}) ${option}</span>
+                                    </label>`;
+                        });
+                        html += '</div></li>';
+                        questionCounter++;
+                    });
+                    html += '</ol>';
+                }
+
+                quizDisplay.innerHTML = html;
+            };
+
+            const checkAnswers = () => {
+                let score = 0;
+                let totalQuestions = currentQuiz.vf.length + currentQuiz.sm.length;
+
+                currentQuiz.vf.forEach((q, index) => {
+                    const item = document.getElementById(`vf-item-${index}`);
+                    const selected = document.querySelector(`input[name="vf-${index}"]:checked`);
+                    if (selected) {
+                        if (selected.value === q.a) {
+                            score++;
+                            item.classList.add('correct-answer');
+                        } else {
+                            item.classList.add('incorrect-answer');
+                        }
+                    }
+                });
+
+                currentQuiz.sm.forEach((q, index) => {
+                    const item = document.getElementById(`sm-item-${index}`);
+                    const selected = document.querySelector(`input[name="sm-${index}"]:checked`);
+                    if (selected) {
+                        if (selected.value === q.a) {
+                            score++;
+                            item.classList.add('correct-answer');
+                        } else {
+                            item.classList.add('incorrect-answer');
+                        }
+                    }
+                });
+                
+                quizResults.innerHTML = `<h2 class="text-3xl font-bold">Resultado: ${score} de ${totalQuestions} correctas</h2>`;
+                quizResults.classList.remove('hidden');
+
+                document.querySelectorAll('input[type="radio"]').forEach(radio => radio.disabled = true);
+                checkAnswersBtn.disabled = true;
+                checkAnswersBtn.classList.add('hidden');
+                showSolutionsBtn.classList.remove('hidden');
+
+            };
+            
+            const renderSolutions = () => {
+                let html = '<h2 class="text-3xl font-bold text-center mb-6">Solucionario Detallado</h2>';
+                let questionCounter = 1;
+
+                if (currentQuiz.vf.length > 0) {
+                    html += '<h3 class="text-xl font-bold mb-4">Verdadero y Falso</h3>';
+                    html += '<ol class="space-y-4">';
+                     currentQuiz.vf.forEach(q => {
+                        const solutionClass = q.a === 'V' ? 'solution-v' : 'solution-f';
+                        html += `<li class="p-4 rounded-lg ${solutionClass}">
+                            <p class="font-bold">${questionCounter}. ${q.q}</p>
+                            <p class="mt-2"><strong class="text-lg">Respuesta: ${q.a === 'V' ? 'Verdadero' : 'Falso'}</strong></p>
+                            <p class="mt-1"><em>Justificación:</em> ${q.j}</p>
+                            <p class="mt-1 text-sm text-slate-600"><strong>Referencia:</strong> ${q.ref}</p>
+                        </li>`;
+                        questionCounter++;
+                    });
+                    html += '</ol>';
+                }
+
+                if (currentQuiz.sm.length > 0) {
+                    html += `<h3 class="text-xl font-bold mb-4 ${currentQuiz.vf.length > 0 ? 'mt-8' : ''}">Selección Múltiple</h3>`;
+                    html += '<ol class="space-y-4" start="' + questionCounter + '">';
+                     currentQuiz.sm.forEach(q => {
+                        html += `<li class="solution p-4 rounded-lg">
+                            <p class="font-bold">${questionCounter}. ${q.q}</p>
+                            <p class="mt-2"><strong class="text-lg">Respuesta Correcta: ${q.a.toUpperCase()})</strong></p>
+                            <p class="mt-1"><em>Justificación:</em> ${q.j}</p>
+                            <p class="mt-1 text-sm text-slate-600"><strong>Referencia:</strong> ${q.ref}</p>
+                        </li>`;
+                        questionCounter++;
+                    });
+                    html += '</ol>';
+                }
+
+                solutionsContainer.innerHTML = html;
+            };
+
+            const toggleSolutions = () => {
+                const isHidden = solutionsContainer.classList.contains('hidden');
+                if (isHidden) {
+                    solutionsContainer.classList.remove('hidden');
+                    showSolutionsBtn.textContent = 'Ocultar Solucionario';
+                } else {
+                    solutionsContainer.classList.add('hidden');
+                    showSolutionsBtn.textContent = 'Mostrar Solucionario';
+                }
+            };
+            
+            const resetApp = () => {
+                configSection.classList.remove('hidden');
+                quizContainer.classList.add('hidden');
+                solutionsContainer.classList.add('hidden');
+                quizDisplay.innerHTML = '';
+                solutionsContainer.innerHTML = '';
+            };
+
+            generateBtn.addEventListener('click', generateQuiz);
+            checkAnswersBtn.addEventListener('click', checkAnswers);
+            showSolutionsBtn.addEventListener('click', toggleSolutions);
+            resetBtn.addEventListener('click', resetApp);
+            
+            updateAvailableQuestions();
+        });
+    </script>
+</body>
+</html>
+
